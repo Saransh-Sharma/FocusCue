@@ -40,6 +40,7 @@ class OverlayContent {
     var pageCount: Int = 1
     var currentPageIndex: Int = 0
     var pagePreviews: [String] = []
+    var pageTitles: [String] = []
     var showPagePicker: Bool = false
     var jumpToPageIndex: Int? = nil
 }
@@ -61,7 +62,7 @@ class NotchOverlayController: NSObject {
 
     func show(text: String, hasNextPage: Bool = false, onComplete: (() -> Void)? = nil) {
         self.onComplete = onComplete
-        self.onNextPage = { [weak self] in
+        self.onNextPage = {
             FocusCueService.shared.advanceToNextPage()
         }
         self.isDismissing = false
@@ -434,7 +435,7 @@ class NotchOverlayController: NSObject {
                 // Poll for page jump from page picker
                 if let targetIndex = self.overlayContent.jumpToPageIndex {
                     self.overlayContent.jumpToPageIndex = nil
-                    FocusCueService.shared.jumpToPage(index: targetIndex)
+                    FocusCueService.shared.jumpToLiveSequencePage(index: targetIndex)
                 }
             }
             .store(in: &cancellables)
@@ -1005,32 +1006,41 @@ struct NotchOverlayView: View {
 
                 ForEach(0..<content.pageCount, id: \.self) { i in
                     let preview = i < content.pagePreviews.count ? content.pagePreviews[i] : ""
-                    if !preview.isEmpty {
-                        Button {
-                            content.jumpToPageIndex = i
-                            content.showPagePicker = false
-                        } label: {
-                            HStack(spacing: 8) {
-                                Text("\(i + 1)")
-                                    .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(i == content.currentPageIndex ? .yellow : .white.opacity(0.8))
-                                    .frame(width: 20)
-                                Text(preview)
-                                    .font(.system(size: 12, weight: .regular))
-                                    .foregroundStyle(i == content.currentPageIndex ? .yellow.opacity(0.7) : .white.opacity(0.5))
+                    let title = i < content.pageTitles.count ? content.pageTitles[i] : "Page \(i + 1)"
+                    Button {
+                        content.jumpToPageIndex = i
+                        content.showPagePicker = false
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text("\(i + 1)")
+                                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                .foregroundStyle(i == content.currentPageIndex ? .yellow : .white.opacity(0.8))
+                                .frame(width: 20)
+
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(title)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(i == content.currentPageIndex ? .yellow.opacity(0.9) : .white.opacity(0.78))
                                     .lineLimit(1)
                                     .truncationMode(.tail)
-                                Spacer()
+                                if !preview.isEmpty {
+                                    Text(preview)
+                                        .font(.system(size: 11, weight: .regular))
+                                        .foregroundStyle(i == content.currentPageIndex ? .yellow.opacity(0.7) : .white.opacity(0.5))
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                }
                             }
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(i == content.currentPageIndex ? Color.yellow.opacity(0.1) : Color.white.opacity(0.05))
-                            )
+                            Spacer()
                         }
-                        .buttonStyle(.plain)
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(i == content.currentPageIndex ? Color.yellow.opacity(0.1) : Color.white.opacity(0.05))
+                        )
                     }
+                    .buttonStyle(.plain)
                 }
 
                 Text("Tap a page to jump")
@@ -1458,32 +1468,40 @@ struct FloatingOverlayView: View {
 
                 ForEach(0..<content.pageCount, id: \.self) { i in
                     let preview = i < content.pagePreviews.count ? content.pagePreviews[i] : ""
-                    if !preview.isEmpty {
-                        Button {
-                            content.jumpToPageIndex = i
-                            content.showPagePicker = false
-                        } label: {
-                            HStack(spacing: 10) {
-                                Text("\(i + 1)")
-                                    .font(.system(size: 14, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(i == content.currentPageIndex ? .yellow : .white.opacity(0.8))
-                                    .frame(width: 24)
-                                Text(preview)
-                                    .font(.system(size: 13, weight: .regular))
-                                    .foregroundStyle(i == content.currentPageIndex ? .yellow.opacity(0.7) : .white.opacity(0.5))
+                    let title = i < content.pageTitles.count ? content.pageTitles[i] : "Page \(i + 1)"
+                    Button {
+                        content.jumpToPageIndex = i
+                        content.showPagePicker = false
+                    } label: {
+                        HStack(spacing: 10) {
+                            Text("\(i + 1)")
+                                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                                .foregroundStyle(i == content.currentPageIndex ? .yellow : .white.opacity(0.8))
+                                .frame(width: 24)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(title)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(i == content.currentPageIndex ? .yellow.opacity(0.9) : .white.opacity(0.78))
                                     .lineLimit(1)
                                     .truncationMode(.tail)
-                                Spacer()
+                                if !preview.isEmpty {
+                                    Text(preview)
+                                        .font(.system(size: 12, weight: .regular))
+                                        .foregroundStyle(i == content.currentPageIndex ? .yellow.opacity(0.7) : .white.opacity(0.5))
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                }
                             }
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 10)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(i == content.currentPageIndex ? Color.yellow.opacity(0.1) : Color.white.opacity(0.05))
-                            )
+                            Spacer()
                         }
-                        .buttonStyle(.plain)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(i == content.currentPageIndex ? Color.yellow.opacity(0.1) : Color.white.opacity(0.05))
+                        )
                     }
+                    .buttonStyle(.plain)
                 }
 
                 Text("Tap a page to jump")
