@@ -57,6 +57,7 @@ struct FCGlassPanel<Content: View>: View {
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
         let corner = FCShapeToken.radius18.rawValue
         let fillToken: FCColorToken = emphasized ? .surfaceGlassStrong : .surfaceGlass
+        let panelShape = RoundedRectangle(cornerRadius: corner, style: .continuous)
 
         Group {
             if includePadding {
@@ -66,13 +67,11 @@ struct FCGlassPanel<Content: View>: View {
                 content
             }
         }
-        .background(theme.material(.card))
-        .background(
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .fill(theme.color(fillToken))
-        )
+        .background(theme.material(.card), in: panelShape)
+        .background(theme.color(fillToken), in: panelShape)
+        .clipShape(panelShape)
         .overlay(
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
+            panelShape
                 .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.medium.rawValue)
         )
         .shadow(
