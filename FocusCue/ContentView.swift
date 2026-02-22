@@ -19,6 +19,8 @@ struct ContentView: View {
     @State private var showDraft = false
     @State private var showOnboarding = false
     @State private var revealMainWindow = false
+    @State private var showDeletePageConfirmation = false
+    @State private var pendingDeletePageID: UUID?
 
     @AppStorage("focuscue.onboarding.completed") private var onboardingCompleted = false
 
@@ -55,147 +57,102 @@ Happy presenting! [wave]
     }
 
     private var currentText: Binding<String> {
-        Binding(
-            get: {
-                guard service.currentPageIndex < service.pages.count else { return "" }
-                return service.pages[service.currentPageIndex]
-            },
-            set: { newValue in
-                guard service.currentPageIndex < service.pages.count else { return }
-                service.pages[service.currentPageIndex] = newValue
-            }
-        )
-    }
-
-    private var hasAnyContent: Bool {
-        service.pages.contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        service.textBindingForSelectedPage()
     }
 
     private var currentFileName: String? {
         service.currentFileURL?.deletingPathExtension().lastPathComponent
     }
 
-    private var pageItems: [FCPageRailItemModel] {
-        service.pages.enumerated().map { index, text in
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            let preview = trimmed.isEmpty ? "" : String(trimmed.prefix(30))
-            return FCPageRailItemModel(
-                index: index,
-                isRead: service.readPages.contains(index),
-                isCurrent: service.currentPageIndex == index,
-                preview: preview
-            )
-        }
+    private var liveSidebarRows: [SidebarPageRowModel] {
+        service.sidebarSections.first(where: { $0.kind == .liveTranscripts })?.pages ?? []
+    }
+
+    private var archiveSidebarRows: [SidebarPageRowModel] {
+        service.sidebarSections.first(where: { $0.kind == .archive })?.pages ?? []
+    }
+
+    private var selectedPageTitle: String? {
+        guard let id = service.selectedPageID else { return nil }
+        let title = service.pageTitle(for: id)
+        return title.isEmpty ? nil : title
+    }
+
+    private var livePlayablePageCount: Int {
+        service.liveSequencePages().count
+    }
+
+    private var remainingPlayableCountFromSelection: Int? {
+        guard let selectedPageID = service.selectedPageID else { return nil }
+        let ids = service.liveSequencePageIDs
+        guard let index = ids.firstIndex(of: selectedPageID) else { return nil }
+        return ids.count - index
     }
 
     var body: some View {
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
 
-        ZStack {
-            FCWindowBackdrop()
+        GeometryReader { proxy in
+            let compactLayoutWidthThreshold: CGFloat = 1220
+            let compactHeightThreshold: CGFloat = 760
+            let tightCompactHeightThreshold: CGFloat = 700
+            let isCompactLayout = proxy.size.width < compactLayoutWidthThreshold
+            let isCompactHeight = proxy.size.height < compactHeightThreshold
+            let isTightCompactHeight = proxy.size.height < tightCompactHeightThreshold
+            let contentPadding = (isCompactLayout || isCompactHeight)
+                ? FCSpacingToken.s16.rawValue
+                : FCSpacingToken.s24.rawValue
+            let mainStackSpacing = (isCompactLayout || isCompactHeight)
+                ? FCSpacingToken.s12.rawValue
+                : FCSpacingToken.s20.rawValue
+            let columnSpacing = isCompactLayout
+                ? FCSpacingToken.s12.rawValue
+                : FCSpacingToken.s16.rawValue
+            let sidebarWidth: CGFloat = isCompactLayout ? 228 : 248
+            let editorMinHeight: CGFloat = isTightCompactHeight ? 320 : (isCompactHeight ? 360 : 460)
 
-            VStack(alignment: .leading, spacing: FCSpacingToken.s20.rawValue) {
-                FCWindowHeader(subtitle: "Premium Teleprompter Control Center")
+            ZStack {
+                FCWindowBackdrop()
 
-                HStack(alignment: .top, spacing: FCSpacingToken.s16.rawValue) {
-                    FCPageRail(
-                        items: pageItems,
-                        canDelete: service.pages.count > 1,
-                        onSelect: { index in
-                            withAnimation(theme.spring(.snappy)) {
-                                service.currentPageIndex = index
-                            }
-                        },
-                        onDelete: { index in
-                            removePage(at: index)
-                        },
-                        onAdd: {
-                            addPage()
-                        }
+                VStack(alignment: .leading, spacing: mainStackSpacing) {
+                    FCWindowHeader(
+                        subtitle: "Premium Teleprompter Control Center",
+                        compact: isCompactLayout
                     )
 
-                    FCGlassPanel {
-                        VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
-                            HStack {
-                                Text("Script Editor")
-                                    .foregroundStyle(theme.color(.textPrimary))
-                                    .fcTypography(.heading)
-                                Spacer()
-                                if service.hasUnsavedChanges {
-                                    Label("Unsaved", systemImage: "circle.fill")
-                                        .foregroundStyle(theme.color(.stateWarning))
-                                        .fcTypography(.caption)
-                                }
+                    if isCompactLayout {
+                        VStack(alignment: .leading, spacing: mainStackSpacing) {
+                            HStack(alignment: .top, spacing: columnSpacing) {
+                                pageRailView(theme: theme, width: sidebarWidth)
+                                editorPanel(theme: theme, minHeight: editorMinHeight)
                             }
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
 
-                            TextEditor(text: currentText)
-                                .foregroundStyle(theme.color(.textPrimary))
-                                .fcTypography(.bodyL)
-                                .scrollContentBackground(.hidden)
-                                .padding(FCSpacingToken.s12.rawValue)
-                                .background(
-                                    RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                                        .fill(theme.color(.surfaceGlassStrong).opacity(0.84))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                                        .stroke(
-                                            isTextFocused ? theme.color(.borderFocus) : theme.color(.borderSubtle),
-                                            lineWidth: isTextFocused ? FCStrokeToken.medium.rawValue : FCStrokeToken.thin.rawValue
-                                        )
-                                )
-                                .focused($isTextFocused)
+                            rightColumnView(theme: theme, compact: true)
+                        }
+                    } else {
+                        HStack(alignment: .top, spacing: columnSpacing) {
+                            pageRailView(theme: theme, width: sidebarWidth)
+                            editorPanel(theme: theme, minHeight: editorMinHeight)
+                            rightColumnView(theme: theme, compact: false)
                         }
                     }
-                    .frame(maxWidth: .infinity, minHeight: 460)
-
-                    FCCommandCenter(
-                        fileName: currentFileName,
-                        hasUnsavedChanges: service.hasUnsavedChanges,
-                        modeLabel: modeLabel,
-                        modeDescription: modeDescription,
-                        onOpenDocument: { service.openFile() },
-                        onDraft: { showDraft = true },
-                        onAddPage: { addPage() },
-                        onSettings: { showSettings = true },
-                        onOpenOnboarding: { showOnboarding = true }
-                    )
                 }
-            }
-            .padding(FCSpacingToken.s24.rawValue)
-            .opacity(revealMainWindow ? 1 : 0)
-            .offset(y: revealMainWindow ? 0 : (reduceMotion ? 0 : 12))
-            .animation(theme.animation(.emphasized, curve: .enter), value: revealMainWindow)
+                .padding(contentPadding)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .opacity(revealMainWindow ? 1 : 0)
+                .offset(y: revealMainWindow ? 0 : (reduceMotion ? 0 : 12))
+                .animation(theme.animation(.emphasized, curve: .enter), value: revealMainWindow)
 
-            if isDroppingPresentation {
-                FCDropZoneOverlay()
-                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
-            }
-
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    FCRunDock(
-                        isRunning: isRunning,
-                        isEnabled: isRunning || hasAnyContent,
-                        action: {
-                            if isRunning {
-                                stop()
-                            } else {
-                                run()
-                            }
-                        }
-                    )
+                if isDroppingPresentation {
+                    FCDropZoneOverlay()
+                        .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
                 }
-                .padding(.trailing, FCSpacingToken.s24.rawValue)
-                .padding(.bottom, FCSpacingToken.s20.rawValue)
-            }
 
-            // Invisible drop target covering the whole window.
-            Color.clear
-                .contentShape(Rectangle())
-                .onDrop(of: [.fileURL], isTargeted: $isDroppingPresentation) { providers in
+                // Invisible drop target covering the whole window.
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onDrop(of: [.fileURL], isTargeted: $isDroppingPresentation) { providers in
                     guard let provider = providers.first else { return false }
                     _ = provider.loadObject(ofClass: URL.self) { url, _ in
                         guard let url else { return }
@@ -220,21 +177,41 @@ Happy presenting! [wave]
                     }
                     return true
                 }
-                .allowsHitTesting(isDroppingPresentation)
+                    .allowsHitTesting(isDroppingPresentation)
+            }
         }
         .alert(dropAlertTitle, isPresented: Binding(get: { dropError != nil }, set: { if !$0 { dropError = nil } })) {
             Button("OK") { dropError = nil }
         } message: {
             Text(dropError ?? "")
         }
-        .frame(minWidth: 1100, minHeight: 660)
+        .confirmationDialog(
+            "Delete this page?",
+            isPresented: $showDeletePageConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Page", role: .destructive) {
+                guard let pageID = pendingDeletePageID else { return }
+                withAnimation(theme.spring(.snappy)) {
+                    service.deletePage(pageID)
+                }
+                pendingDeletePageID = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeletePageID = nil
+            }
+        } message: {
+            if let pageID = pendingDeletePageID {
+                let title = service.pageTitle(for: pageID)
+                Text("Delete \"\(title)\" permanently? This removes the page from FocusCue. If a draft file exists, it will be moved to Trash.")
+            }
+        }
+        .frame(minWidth: 920, minHeight: 640)
         .sheet(isPresented: $showDraft) {
             DraftSessionView { script in
                 let trimmed = script.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else { return }
-                service.pages = [trimmed]
-                service.currentPageIndex = 0
-                service.savedPages = service.pages
+                service.replaceWorkspaceWithSinglePage(text: trimmed, markAsSaved: true)
             }
         }
         .sheet(isPresented: $showSettings) {
@@ -269,8 +246,8 @@ Happy presenting! [wave]
             isRunning = service.overlayController.isShowing
         }
         .onAppear {
-            if service.pages.count == 1 && service.pages[0].isEmpty {
-                service.pages[0] = defaultText
+            if !service.restoredWorkspaceFromAutosave && service.totalPageCount == 1 && service.currentPageText.isEmpty {
+                service.setTextForSelectedPage(defaultText)
             }
 
             if service.overlayController.isShowing {
@@ -296,85 +273,317 @@ Happy presenting! [wave]
         }
     }
 
-    // MARK: - Actions
+    // MARK: - Main Window Subviews
 
-    private func addPage() {
-        withAnimation(.spring(response: FCMotionToken.Spring.snappy.response, dampingFraction: FCMotionToken.Spring.snappy.dampingFraction)) {
-            service.pages.append("")
-            service.currentPageIndex = service.pages.count - 1
-        }
+    @ViewBuilder
+    private func pageRailView(theme: FCTheme, width: CGFloat) -> some View {
+        FCPageRail(
+            livePages: liveSidebarRows,
+            archivePages: archiveSidebarRows,
+            canDeletePages: service.canDeletePages,
+            selectedModule: service.selectedPageModule,
+            onSelectPage: { pageID in
+                withAnimation(theme.spring(.snappy)) {
+                    service.selectPage(pageID)
+                }
+            },
+            onRenamePage: { pageID, title in
+                service.renamePage(pageID, to: title)
+            },
+            onSavePage: { pageID in
+                _ = service.savePageDraft(pageID)
+            },
+            onDeletePage: { pageID in
+                withAnimation(theme.spring(.snappy)) {
+                    service.deletePage(pageID)
+                }
+            },
+            onAddLivePage: { addPage() },
+            onReorderPage: { pageID, module, targetIndex in
+                withAnimation(theme.spring(.soft)) {
+                    service.movePageWithinModule(pageID, module: module, toIndex: targetIndex)
+                }
+            }
+        )
+        .frame(width: width)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
-    private func removePage(at index: Int) {
-        guard service.pages.count > 1 else { return }
-        withAnimation(.spring(response: FCMotionToken.Spring.snappy.response, dampingFraction: FCMotionToken.Spring.snappy.dampingFraction)) {
-            service.pages.remove(at: index)
-            if service.currentPageIndex >= service.pages.count {
-                service.currentPageIndex = service.pages.count - 1
-            } else if service.currentPageIndex > index {
-                service.currentPageIndex -= 1
+    @ViewBuilder
+    private func editorPanel(theme: FCTheme, minHeight: CGFloat) -> some View {
+        FCGlassPanel {
+            VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                HStack(spacing: FCSpacingToken.s8.rawValue) {
+                    Text("Script Editor")
+                        .foregroundStyle(theme.color(.textPrimary))
+                        .fcTypography(.heading)
+                        .lineLimit(1)
+                        .layoutPriority(1)
+
+                    Spacer(minLength: FCSpacingToken.s8.rawValue)
+
+                    editorToolbarActions(theme: theme)
+                }
+
+                TextEditor(text: currentText)
+                    .foregroundStyle(theme.color(.textPrimary))
+                    .fcTypography(.bodyL)
+                    .scrollContentBackground(.hidden)
+                    .padding(FCSpacingToken.s12.rawValue)
+                    .background(
+                        RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                            .fill(theme.color(.surfaceGlassStrong).opacity(0.84))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                            .stroke(
+                                isTextFocused ? theme.color(.borderFocus) : theme.color(.borderSubtle),
+                                lineWidth: isTextFocused ? FCStrokeToken.medium.rawValue : FCStrokeToken.thin.rawValue
+                            )
+                    )
+                    .focused($isTextFocused)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: minHeight)
+    }
+
+    @ViewBuilder
+    private func editorToolbarActions(theme: FCTheme) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: FCSpacingToken.s12.rawValue) {
+                editorSaveButton(theme: theme)
+                editorMovePageButton(theme: theme)
+                editorDeletePageButton(theme: theme)
+            }
+
+            HStack(spacing: FCSpacingToken.s8.rawValue) {
+                if service.hasDirtyDraftPages {
+                    editorSaveButton(theme: theme)
+                }
+                if service.selectedPageID != nil {
+                    editorPageActionsMenuButton(theme: theme, includeSaveAction: false)
+                }
+            }
+
+            HStack(spacing: FCSpacingToken.s8.rawValue) {
+                if service.selectedPageID != nil {
+                    editorPageActionsMenuButton(theme: theme, includeSaveAction: true)
+                } else if service.hasDirtyDraftPages {
+                    editorSaveButton(theme: theme)
+                }
             }
         }
     }
 
+    @ViewBuilder
+    private func editorSaveButton(theme: FCTheme) -> some View {
+        if service.hasDirtyDraftPages {
+            Button {
+                saveSelectedOrAllDirtyPages()
+            } label: {
+                Label("Save", systemImage: "square.and.arrow.down")
+                    .fcTypography(.caption)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(theme.color(.accentInfo))
+        }
+    }
+
+    @ViewBuilder
+    private func editorMovePageButton(theme: FCTheme) -> some View {
+        if let selectedPageID = service.selectedPageID,
+           let selectedModule = service.selectedPageModule {
+            if selectedModule == .liveTranscripts {
+                Button {
+                    withAnimation(theme.spring(.snappy)) {
+                        service.movePageToArchive(selectedPageID)
+                    }
+                } label: {
+                    Label("Move to Archive", systemImage: "archivebox")
+                        .fcTypography(.caption)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(theme.color(.accentInfo))
+            } else {
+                Button {
+                    withAnimation(theme.spring(.snappy)) {
+                        service.movePageToLiveTranscripts(selectedPageID)
+                    }
+                } label: {
+                    Label("Move to Live Transcripts", systemImage: "tray.and.arrow.up")
+                        .fcTypography(.caption)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(theme.color(.accentPrimary))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func editorDeletePageButton(theme: FCTheme) -> some View {
+        if let selectedPageID = service.selectedPageID {
+            Button {
+                pendingDeletePageID = selectedPageID
+                showDeletePageConfirmation = true
+            } label: {
+                Label("Delete Page", systemImage: "trash")
+                    .fcTypography(.caption)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(theme.color(.stateError))
+            .disabled(!service.canDeletePages)
+            .opacity(service.canDeletePages ? 1 : 0.4)
+        }
+    }
+
+    @ViewBuilder
+    private func editorPageActionsMenuButton(theme: FCTheme, includeSaveAction: Bool) -> some View {
+        Menu {
+            if includeSaveAction, service.hasDirtyDraftPages {
+                Button("Save", action: saveSelectedOrAllDirtyPages)
+            }
+
+            if let selectedPageID = service.selectedPageID,
+               let selectedModule = service.selectedPageModule {
+                if selectedModule == .liveTranscripts {
+                    Button {
+                        withAnimation(theme.spring(.snappy)) {
+                            service.movePageToArchive(selectedPageID)
+                        }
+                    } label: {
+                        Label("Move to Archive", systemImage: "archivebox")
+                    }
+                } else {
+                    Button {
+                        withAnimation(theme.spring(.snappy)) {
+                            service.movePageToLiveTranscripts(selectedPageID)
+                        }
+                    } label: {
+                        Label("Move to Live Transcripts", systemImage: "tray.and.arrow.up")
+                    }
+                }
+
+                Button(role: .destructive) {
+                    pendingDeletePageID = selectedPageID
+                    showDeletePageConfirmation = true
+                } label: {
+                    Label("Delete Page", systemImage: "trash")
+                }
+                .disabled(!service.canDeletePages)
+            }
+        } label: {
+            Label("Page Actions", systemImage: "ellipsis.circle")
+                .fcTypography(.caption)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    @ViewBuilder
+    private func rightColumnView(theme: FCTheme, compact: Bool) -> some View {
+        let column = VStack(spacing: FCSpacingToken.s16.rawValue) {
+            FCPlaybackHeroPanel(
+                isRunning: isRunning,
+                startAvailabilityReason: service.startAvailabilityReason,
+                selectedPageTitle: selectedPageTitle,
+                selectedPageModule: service.selectedPageModule,
+                livePlayablePageCount: livePlayablePageCount,
+                remainingPlayableCountFromSelection: remainingPlayableCountFromSelection,
+                modeLabel: modeLabel,
+                modeDescription: modeDescription,
+                onStart: { run() },
+                onStop: { stop() }
+            )
+
+            FCCommandCenter(
+                fileName: currentFileName,
+                hasUnsavedChanges: service.hasUnsavedChanges,
+                hasDirtyPages: service.hasDirtyDraftPages,
+                modeLabel: modeLabel,
+                modeDescription: modeDescription,
+                onOpenDocument: { service.openFile() },
+                onSaveAllDirtyPages: { service.saveAllDirtyPages() },
+                onDraft: { showDraft = true },
+                onAddPage: { addPage() },
+                onSettings: { showSettings = true },
+                onOpenOnboarding: { showOnboarding = true },
+                showOnboardingPrompt: !onboardingCompleted
+            )
+        }
+
+        if compact {
+            column
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+        } else {
+            column
+                .frame(width: 300, alignment: .topLeading)
+        }
+    }
+
+    // MARK: - Actions
+
+    private func addPage() {
+        withAnimation(.spring(response: FCMotionToken.Spring.snappy.response, dampingFraction: FCMotionToken.Spring.snappy.dampingFraction)) {
+            _ = service.createPageInSelectedSection()
+        }
+    }
+
+    private func saveSelectedOrAllDirtyPages() {
+        if let selectedPageID = service.selectedPageID,
+           service.pageNeedsSave(selectedPageID) {
+            _ = service.savePageDraft(selectedPageID)
+        } else {
+            service.saveAllDirtyPages()
+        }
+    }
+
     private func run() {
-        guard hasAnyContent else { return }
-        let selectedPageText = service.currentPageText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !selectedPageText.isEmpty else {
+        switch service.startAvailabilityReason {
+        case .ready:
+            break
+        case .noSelection:
             dropAlertTitle = "Cannot Start"
-            dropError = "The selected page is empty. Select a page with text or add content to this page before starting."
+            dropError = "Select a page in Live Transcripts to enable Start."
+            return
+        case .selectedPageInArchive:
+            dropAlertTitle = "Cannot Start"
+            dropError = "Archive pages do not play. Move the selected page to Live Transcripts first."
+            return
+        case .selectedLivePageEmpty:
+            dropAlertTitle = "Cannot Start"
+            dropError = "The selected live transcript page is empty. Add script text before starting."
+            return
+        case .noNonEmptyLivePages:
+            dropAlertTitle = "Cannot Start"
+            dropError = "Add script to a live transcript page before starting."
             return
         }
 
         isTextFocused = false
         service.onOverlayDismissed = { [self] in
             isRunning = false
-            service.readPages.removeAll()
+            service.clearReadState()
             NSApp.activate(ignoringOtherApps: true)
             NSApp.windows.first?.makeKeyAndOrderFront(nil)
         }
-        service.readPages.removeAll()
-        service.readCurrentPage()
+        service.startSelectedLivePage()
         isRunning = service.overlayController.isShowing
     }
 
-    @State private var isImporting = false
-
     private func handlePresentationDrop(url: URL) {
         guard service.confirmDiscardIfNeeded() else { return }
-        isImporting = true
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            do {
-                let notes = try PresentationNotesExtractor.extractNotes(from: url)
-                DispatchQueue.main.async {
-                    service.pages = notes
-                    service.savedPages = notes
-                    service.currentPageIndex = 0
-                    service.readPages.removeAll()
-                    service.currentFileURL = nil
-                    isImporting = false
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    dropError = error.localizedDescription
-                    isImporting = false
-                }
-            }
-        }
+        service.importPresentation(from: url)
     }
 
     private func stop() {
         service.overlayController.dismiss()
-        service.readPages.removeAll()
+        service.clearReadState()
         isRunning = false
     }
 
     private func applyGuidedTemplate() {
-        service.pages = [defaultText]
-        service.currentPageIndex = 0
-        service.readPages.removeAll()
-        service.currentFileURL = nil
+        service.replaceWorkspaceWithSinglePage(text: defaultText, markAsSaved: true)
+        service.clearReadState()
         isTextFocused = true
     }
 }

@@ -54,6 +54,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        FocusCueService.shared.confirmDiscardIfNeeded() ? .terminateNow : .terminateCancel
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        FocusCueService.shared.flushPendingPersistence()
+    }
+
     private func removeUnwantedMenus() {
         guard let mainMenu = NSApp.mainMenu else { return }
         // Remove View and Window menus (keep Edit for copy/paste)
