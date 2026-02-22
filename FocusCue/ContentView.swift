@@ -319,6 +319,13 @@ Happy presenting! [wave]
 
     private func run() {
         guard hasAnyContent else { return }
+        let selectedPageText = service.currentPageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !selectedPageText.isEmpty else {
+            dropAlertTitle = "Cannot Start"
+            dropError = "The selected page is empty. Select a page with text or add content to this page before starting."
+            return
+        }
+
         isTextFocused = false
         service.onOverlayDismissed = { [self] in
             isRunning = false
@@ -327,9 +334,8 @@ Happy presenting! [wave]
             NSApp.windows.first?.makeKeyAndOrderFront(nil)
         }
         service.readPages.removeAll()
-        service.currentPageIndex = 0
         service.readCurrentPage()
-        isRunning = true
+        isRunning = service.overlayController.isShowing
     }
 
     @State private var isImporting = false
