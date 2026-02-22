@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Import certificate
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          CERT_PATH=$RUNNER_TEMP/certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(uuidgen)
+
+          echo -n "$APPLE_CERTIFICATE" | base64 --decode -o $CERT_PATH
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security import $CERT_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project FocusCue.xcodeproj \
+            -scheme FocusCue \
+            -configuration Release \
+            -derivedDataPath build \
+            -destination "platform=macOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet
+
+      - name: Sign app
+        shell: bash
+        run: |
+          APP_PATH="build/Build/Products/Release/FocusCue.app"
+          ENTITLEMENTS="FocusCue/FocusCue.entitlements"
+
+          echo "Available identities:"
+          security find-identity -v -p codesigning
+
+          # Extract the first Developer ID Application identity
+          IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | sed -E 's/.*"(.*)"$/\1/')
+          echo "Using identity: $IDENTITY"
+
+          /usr/bin/codesign --force --sign "$IDENTITY" \
+            --entitlements "$ENTITLEMENTS" \
+            --options runtime \
+            --timestamp \
+            --deep \
+            --verbose \
+            "$APP_PATH"
+
+          codesign --verify --verbose=4 "$APP_PATH"
+
+      - name: Notarize app
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          APP_PATH="build/Build/Products/Release/FocusCue.app"
+          ZIP_PATH=$RUNNER_TEMP/FocusCue.zip
+
+          ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
+
+          SUBMIT_OUTPUT=$(xcrun notarytool submit "$ZIP_PATH" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait 2>&1)
+          echo "$SUBMIT_OUTPUT"
+
+          SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | grep 'id:' | head -1 | awk '{print $2}')
+
+          if echo "$SUBMIT_OUTPUT" | grep -q "status: Invalid"; then
+            echo "Notarization failed. Fetching log..."
+            xcrun notarytool log "$SUBMISSION_ID" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID"
+            exit 1
+          fi
+
+          xcrun stapler staple "$APP_PATH"
+
+      - name: Create DMG
+        shell: bash
+        run: |
+          APP_PATH="build/Build/Products/Release/FocusCue.app"
+          DMG_NAME="FocusCue-${GITHUB_REF_NAME}.dmg"
+
+          mkdir -p dmg-staging
+          cp -R "$APP_PATH" dmg-staging/
+          ln -s /Applications dmg-staging/Applications
+
+          hdiutil create -volname "FocusCue" \
+            -srcfolder dmg-staging \
+            -ov -format UDZO \
+            "$DMG_NAME"
+
+      - name: Upload to release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DMG_NAME="FocusCue-${GITHUB_REF_NAME}.dmg"
+          gh release create "$GITHUB_REF_NAME" "$DMG_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "FocusCue ${GITHUB_REF_NAME}" \
+            --generate-notes
