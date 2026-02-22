@@ -72,23 +72,6 @@ Happy presenting! [wave]
         service.sidebarSections.first(where: { $0.kind == .archive })?.pages ?? []
     }
 
-    private var selectedPageTitle: String? {
-        guard let id = service.selectedPageID else { return nil }
-        let title = service.pageTitle(for: id)
-        return title.isEmpty ? nil : title
-    }
-
-    private var livePlayablePageCount: Int {
-        service.liveSequencePages().count
-    }
-
-    private var remainingPlayableCountFromSelection: Int? {
-        guard let selectedPageID = service.selectedPageID else { return nil }
-        let ids = service.liveSequencePageIDs
-        guard let index = ids.firstIndex(of: selectedPageID) else { return nil }
-        return ids.count - index
-    }
-
     var body: some View {
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
 
@@ -116,7 +99,7 @@ Happy presenting! [wave]
 
                 VStack(alignment: .leading, spacing: mainStackSpacing) {
                     FCWindowHeader(
-                        subtitle: "Premium Teleprompter Control Center",
+                        subtitle: "Stay on script. Stay on camera. Stay natural.",
                         compact: isCompactLayout
                     )
 
@@ -485,12 +468,6 @@ Happy presenting! [wave]
             FCPlaybackHeroPanel(
                 isRunning: isRunning,
                 startAvailabilityReason: service.startAvailabilityReason,
-                selectedPageTitle: selectedPageTitle,
-                selectedPageModule: service.selectedPageModule,
-                livePlayablePageCount: livePlayablePageCount,
-                remainingPlayableCountFromSelection: remainingPlayableCountFromSelection,
-                modeLabel: modeLabel,
-                modeDescription: modeDescription,
                 onStart: { run() },
                 onStop: { stop() }
             )
