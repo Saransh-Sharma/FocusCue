@@ -10,6 +10,7 @@ import SwiftUI
 extension Notification.Name {
     static let openSettings = Notification.Name("openSettings")
     static let openAbout = Notification.Name("openAbout")
+    static let openOnboarding = Notification.Name("openOnboarding")
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
@@ -161,6 +162,10 @@ struct FocusCueApp: App {
             }
             CommandGroup(replacing: .windowArrangement) { }
             CommandGroup(replacing: .help) {
+                Button("Getting Started…") {
+                    NotificationCenter.default.post(name: .openOnboarding, object: nil)
+                }
+                Divider()
                 Button("FocusCue Help") {
                     if let url = URL(string: "https://github.com/saransh1337/FocusCue") {
                         NSWorkspace.shared.open(url)

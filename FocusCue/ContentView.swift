@@ -13,11 +13,18 @@ struct ContentView: View {
     @State private var isRunning = false
     @State private var isDroppingPresentation = false
     @State private var dropError: String?
-    @State private var dropAlertTitle: String = "Import Error"
+    @State private var dropAlertTitle = "Import Error"
     @State private var showSettings = false
     @State private var showAbout = false
     @State private var showDraft = false
+    @State private var showOnboarding = false
+    @State private var revealMainWindow = false
+
+    @AppStorage("focuscue.onboarding.completed") private var onboardingCompleted = false
+
     @FocusState private var isTextFocused: Bool
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let defaultText = """
 Welcome to FocusCue! This is your personal teleprompter that sits right below your MacBook's notch. [smile]
@@ -33,8 +40,18 @@ Happy presenting! [wave]
 
     private var languageLabel: String {
         let locale = NotchSettings.shared.speechLocale
-        return Locale.current.localizedString(forIdentifier: locale)
-            ?? locale
+        return Locale.current.localizedString(forIdentifier: locale) ?? locale
+    }
+
+    private var modeLabel: String {
+        if NotchSettings.shared.listeningMode == .wordTracking {
+            return "Word Tracking (\(languageLabel))"
+        }
+        return NotchSettings.shared.listeningMode.label
+    }
+
+    private var modeDescription: String {
+        NotchSettings.shared.listeningMode.description
     }
 
     private var currentText: Binding<String> {
@@ -54,75 +71,128 @@ Happy presenting! [wave]
         service.pages.contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
 
+    private var currentFileName: String? {
+        service.currentFileURL?.deletingPathExtension().lastPathComponent
+    }
+
+    private var pageItems: [FCPageRailItemModel] {
+        service.pages.enumerated().map { index, text in
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let preview = trimmed.isEmpty ? "" : String(trimmed.prefix(30))
+            return FCPageRailItemModel(
+                index: index,
+                isRead: service.readPages.contains(index),
+                isCurrent: service.currentPageIndex == index,
+                preview: preview
+            )
+        }
+    }
+
     var body: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+
         ZStack {
-            HStack(spacing: 0) {
-                // Sidebar with page squares
-                if service.pages.count > 1 {
-                    pageSidebar
-                }
+            FCWindowBackdrop()
 
-                // Main content area
-                ZStack {
-                    TextEditor(text: currentText)
-                        .font(.system(size: 16, weight: .regular, design: .rounded))
-                        .scrollContentBackground(.hidden)
-                        .padding(20)
-                        .focused($isTextFocused)
+            VStack(alignment: .leading, spacing: FCSpacingToken.s20.rawValue) {
+                FCWindowHeader(subtitle: "Premium Teleprompter Control Center")
 
-                    // Floating action button (bottom-right)
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            Button {
-                                if isRunning {
-                                    stop()
-                                } else {
-                                    run()
-                                }
-                            } label: {
-                                Image(systemName: isRunning ? "stop.fill" : "play.fill")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(isRunning ? Color.red : Color.accentColor)
-                                    .clipShape(Circle())
-                                    .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
+                HStack(alignment: .top, spacing: FCSpacingToken.s16.rawValue) {
+                    FCPageRail(
+                        items: pageItems,
+                        canDelete: service.pages.count > 1,
+                        onSelect: { index in
+                            withAnimation(theme.spring(.snappy)) {
+                                service.currentPageIndex = index
                             }
-                            .buttonStyle(.plain)
-                            .disabled(!isRunning && !hasAnyContent)
-                            .opacity(!hasAnyContent && !isRunning ? 0.4 : 1)
+                        },
+                        onDelete: { index in
+                            removePage(at: index)
+                        },
+                        onAdd: {
+                            addPage()
                         }
-                        .padding(20)
+                    )
+
+                    FCGlassPanel {
+                        VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                            HStack {
+                                Text("Script Editor")
+                                    .foregroundStyle(theme.color(.textPrimary))
+                                    .fcTypography(.heading)
+                                Spacer()
+                                if service.hasUnsavedChanges {
+                                    Label("Unsaved", systemImage: "circle.fill")
+                                        .foregroundStyle(theme.color(.stateWarning))
+                                        .fcTypography(.caption)
+                                }
+                            }
+
+                            TextEditor(text: currentText)
+                                .foregroundStyle(theme.color(.textPrimary))
+                                .fcTypography(.bodyL)
+                                .scrollContentBackground(.hidden)
+                                .padding(FCSpacingToken.s12.rawValue)
+                                .background(
+                                    RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                                        .fill(theme.color(.surfaceGlassStrong).opacity(0.84))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                                        .stroke(
+                                            isTextFocused ? theme.color(.borderFocus) : theme.color(.borderSubtle),
+                                            lineWidth: isTextFocused ? FCStrokeToken.medium.rawValue : FCStrokeToken.thin.rawValue
+                                        )
+                                )
+                                .focused($isTextFocused)
+                        }
                     }
+                    .frame(maxWidth: .infinity, minHeight: 460)
+
+                    FCCommandCenter(
+                        fileName: currentFileName,
+                        hasUnsavedChanges: service.hasUnsavedChanges,
+                        modeLabel: modeLabel,
+                        modeDescription: modeDescription,
+                        onOpenDocument: { service.openFile() },
+                        onDraft: { showDraft = true },
+                        onAddPage: { addPage() },
+                        onSettings: { showSettings = true },
+                        onOpenOnboarding: { showOnboarding = true }
+                    )
                 }
             }
+            .padding(FCSpacingToken.s24.rawValue)
+            .opacity(revealMainWindow ? 1 : 0)
+            .offset(y: revealMainWindow ? 0 : (reduceMotion ? 0 : 12))
+            .animation(theme.animation(.emphasized, curve: .enter), value: revealMainWindow)
 
-            // Drop zone overlay — sits on top so TextEditor doesn't steal the drop
             if isDroppingPresentation {
-                VStack(spacing: 8) {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: 28, weight: .light))
-                        .foregroundStyle(Color.accentColor)
-                    Text("Drop PowerPoint (.pptx) file")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.primary)
-                    Text("For Keynote or Google Slides,\nexport as PPTX first.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [8]))
-                        .background(Color.accentColor.opacity(0.08).clipShape(RoundedRectangle(cornerRadius: 12)))
-                )
-                .padding(8)
+                FCDropZoneOverlay()
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
             }
 
-            // Invisible drop target covering entire window
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    FCRunDock(
+                        isRunning: isRunning,
+                        isEnabled: isRunning || hasAnyContent,
+                        action: {
+                            if isRunning {
+                                stop()
+                            } else {
+                                run()
+                            }
+                        }
+                    )
+                }
+                .padding(.trailing, FCSpacingToken.s24.rawValue)
+                .padding(.bottom, FCSpacingToken.s20.rawValue)
+            }
+
+            // Invisible drop target covering the whole window.
             Color.clear
                 .contentShape(Rectangle())
                 .onDrop(of: [.fileURL], isTargeted: $isDroppingPresentation) { providers in
@@ -157,79 +227,7 @@ Happy presenting! [wave]
         } message: {
             Text(dropError ?? "")
         }
-        .frame(minWidth: 360, minHeight: 240)
-        .background(.ultraThinMaterial)
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                HStack(spacing: 8) {
-                    if let fileURL = service.currentFileURL {
-                        Button {
-                            service.openFile()
-                        } label: {
-                            HStack(spacing: 4) {
-                                if service.pages != service.savedPages {
-                                    Circle()
-                                        .fill(.orange)
-                                        .frame(width: 6, height: 6)
-                                }
-                                Text(fileURL.deletingPathExtension().lastPathComponent)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .lineLimit(1)
-                            }
-                            .foregroundStyle(.tertiary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    // Draft button
-                    Button {
-                        showDraft = true
-                    } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: "mic.badge.plus")
-                                .font(.system(size: 10, weight: .semibold))
-                            Text("Draft")
-                                .font(.system(size: 11, weight: .medium))
-                        }
-                        .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-
-                    // Add page button in toolbar
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            service.pages.append("")
-                            service.currentPageIndex = service.pages.count - 1
-                        }
-                    } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 10, weight: .semibold))
-                            Text("Page")
-                                .font(.system(size: 11, weight: .medium))
-                        }
-                        .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        showSettings = true
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: NotchSettings.shared.listeningMode.icon)
-                                .font(.system(size: 10))
-                            Text(NotchSettings.shared.listeningMode == .wordTracking
-                                 ? languageLabel
-                                 : NotchSettings.shared.listeningMode.label)
-                                .font(.system(size: 11, weight: .medium))
-                                .lineLimit(1)
-                        }
-                        .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
+        .frame(minWidth: 1100, minHeight: 660)
         .sheet(isPresented: $showDraft) {
             DraftSessionView { script in
                 let trimmed = script.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -245,25 +243,40 @@ Happy presenting! [wave]
         .sheet(isPresented: $showAbout) {
             AboutView()
         }
+        .sheet(isPresented: $showOnboarding) {
+            OnboardingWizardView(
+                onStartTemplate: {
+                    applyGuidedTemplate()
+                },
+                onOpenSettings: {
+                    showSettings = true
+                },
+                onFinish: {
+                    onboardingCompleted = true
+                }
+            )
+        }
         .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { _ in
             showSettings = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .openAbout)) { _ in
             showAbout = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: .openOnboarding)) { _ in
+            showOnboarding = true
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            // Sync button state when app is re-activated (e.g. dock click)
             isRunning = service.overlayController.isShowing
         }
         .onAppear {
-            // Set default text for the first page if empty
             if service.pages.count == 1 && service.pages[0].isEmpty {
                 service.pages[0] = defaultText
             }
-            // Sync button state with overlay
+
             if service.overlayController.isShowing {
                 isRunning = true
             }
+
             if FocusCueService.shared.launchedExternally {
                 DispatchQueue.main.async {
                     for window in NSApp.windows where !(window is NSPanel) {
@@ -272,86 +285,29 @@ Happy presenting! [wave]
                 }
             } else {
                 isTextFocused = true
-            }
-        }
-    }
-
-    // MARK: - Page Sidebar
-
-    private var pageSidebar: some View {
-        VStack(spacing: 0) {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 6) {
-                    ForEach(Array(service.pages.enumerated()), id: \.offset) { index, _ in
-                        let isRead = service.readPages.contains(index)
-                        let isCurrent = service.currentPageIndex == index
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                service.currentPageIndex = index
-                            }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Text("\(index + 1)")
-                                    .font(.system(size: 11, weight: isCurrent ? .bold : .medium, design: .monospaced))
-                                    .foregroundStyle(isCurrent ? .white : .primary)
-                                Spacer()
-                                if isRead && !isCurrent {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(.green)
-                                }
-                            }
-                            .padding(.horizontal, 8)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 30)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(isCurrent ? Color.accentColor : Color.primary.opacity(0.06))
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            if service.pages.count > 1 {
-                                Button(role: .destructive) {
-                                    removePage(at: index)
-                                } label: {
-                                    Label("Delete Page", systemImage: "trash")
-                                }
-                            }
-                        }
+                if !onboardingCompleted {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        showOnboarding = true
                     }
                 }
-                .padding(.horizontal, 8)
-                .padding(.top, 8)
             }
 
-            Divider().padding(.horizontal, 8)
-
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    service.pages.append("")
-                    service.currentPageIndex = service.pages.count - 1
-                }
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 30)
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            revealMainWindow = true
         }
-        .frame(width: 68)
-        .background(Color.primary.opacity(0.03))
     }
 
     // MARK: - Actions
 
+    private func addPage() {
+        withAnimation(.spring(response: FCMotionToken.Spring.snappy.response, dampingFraction: FCMotionToken.Spring.snappy.dampingFraction)) {
+            service.pages.append("")
+            service.currentPageIndex = service.pages.count - 1
+        }
+    }
+
     private func removePage(at index: Int) {
         guard service.pages.count > 1 else { return }
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(.spring(response: FCMotionToken.Spring.snappy.response, dampingFraction: FCMotionToken.Spring.snappy.dampingFraction)) {
             service.pages.remove(at: index)
             if service.currentPageIndex >= service.pages.count {
                 service.currentPageIndex = service.pages.count - 1
@@ -363,7 +319,6 @@ Happy presenting! [wave]
 
     private func run() {
         guard hasAnyContent else { return }
-        // Resign text editor focus before hiding the window to avoid ViewBridge crashes
         isTextFocused = false
         service.onOverlayDismissed = { [self] in
             isRunning = false
@@ -408,6 +363,14 @@ Happy presenting! [wave]
         service.readPages.removeAll()
         isRunning = false
     }
+
+    private func applyGuidedTemplate() {
+        service.pages = [defaultText]
+        service.currentPageIndex = 0
+        service.readPages.removeAll()
+        service.currentFileURL = nil
+        isTextFocused = true
+    }
 }
 
 // MARK: - About View
@@ -421,7 +384,6 @@ struct AboutView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            // App icon
             if let icon = NSImage(named: "AppIcon") {
                 Image(nsImage: icon)
                     .resizable()
@@ -429,7 +391,6 @@ struct AboutView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 18))
             }
 
-            // App name & version
             VStack(spacing: 4) {
                 Text("FocusCue")
                     .font(.system(size: 20, weight: .bold))
@@ -438,14 +399,12 @@ struct AboutView: View {
                     .foregroundStyle(.secondary)
             }
 
-            // Description
             Text("A free, open-source teleprompter that highlights your script in real-time as you speak.")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 16)
 
-            // Links
             HStack(spacing: 12) {
                 Link(destination: URL(string: "https://github.com/saransh1337/FocusCue")!) {
                     HStack(spacing: 5) {
