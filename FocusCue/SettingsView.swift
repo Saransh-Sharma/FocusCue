@@ -301,6 +301,11 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 // MARK: - Settings View
 
 struct SettingsView: View {
+    private enum Layout {
+        static let dialogWidth: CGFloat = 640
+        static let dialogHeight: CGFloat = 620
+    }
+
     @Bindable var settings: NotchSettings
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -335,8 +340,7 @@ struct SettingsView: View {
         } footer: {
             footer
         }
-        .frame(width: 500)
-        .frame(minHeight: 280, maxHeight: 500)
+        .frame(width: Layout.dialogWidth, height: Layout.dialogHeight)
         .alert("Reset All Settings?", isPresented: $showResetConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Reset", role: .destructive) {
