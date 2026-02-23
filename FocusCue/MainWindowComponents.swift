@@ -119,7 +119,7 @@ struct FCWindowHeader: View {
                         Text(subtitle)
                             .foregroundStyle(theme.color(.textSecondary))
                             .fcTypography(.bodyM)
-                            .lineLimit(1)
+                            .lineLimit(2)
                             .truncationMode(.tail)
                     }
                 }
@@ -621,12 +621,6 @@ struct FCQuickActionButton: View {
 struct FCPlaybackHeroPanel: View {
     let isRunning: Bool
     let startAvailabilityReason: FocusCueService.StartAvailabilityReason
-    let selectedPageTitle: String?
-    let selectedPageModule: PageModule?
-    let livePlayablePageCount: Int
-    let remainingPlayableCountFromSelection: Int?
-    let modeLabel: String
-    let modeDescription: String
     let onStart: () -> Void
     let onStop: () -> Void
 
@@ -672,7 +666,7 @@ struct FCPlaybackHeroPanel: View {
                         .fcTypography(.heading)
                     Text("Only pages in Live Transcripts play in order when Start is pressed.")
                         .foregroundStyle(theme.color(.textSecondary))
-                        .fcTypography(.caption)
+                        .fcTypography(.bodyM)
                 }
 
                 Button {
@@ -714,7 +708,6 @@ struct FCPlaybackHeroPanel: View {
                 .buttonStyle(.plain)
                 .disabled(!(isRunning || canStart))
                 .opacity((isRunning || canStart) ? 1 : 0.45)
-                .scaleEffect(isHovered ? 1.01 : 1)
                 .animation(theme.animation(.fast), value: isHovered)
                 .onHover { isHovered = $0 }
 
@@ -724,62 +717,11 @@ struct FCPlaybackHeroPanel: View {
                         .foregroundStyle(isRunning ? theme.color(.stateSuccess) : theme.color(.textTertiary))
                     Text(helperText)
                         .foregroundStyle(theme.color(.textSecondary))
-                        .fcTypography(.caption)
-                }
-
-                VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
-                    metadataRow(
-                        label: "Selected",
-                        value: selectedPageTitle ?? "None"
-                    )
-                    metadataRow(
-                        label: "Module",
-                        value: {
-                            switch selectedPageModule {
-                            case .liveTranscripts?: return "Live Transcripts"
-                            case .archive?: return "Archive"
-                            case nil: return "None"
-                            }
-                        }()
-                    )
-                    metadataRow(
-                        label: "Playable Live Pages",
-                        value: "\(livePlayablePageCount)"
-                    )
-                    if let remainingPlayableCountFromSelection {
-                        metadataRow(
-                            label: "Remaining in Sequence",
-                            value: "\(remainingPlayableCountFromSelection)"
-                        )
-                    }
-                }
-
-                Divider().overlay(theme.color(.borderSubtle))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(modeLabel)
-                        .foregroundStyle(theme.color(.textPrimary))
-                        .fcTypography(.label)
-                    Text(modeDescription)
-                        .foregroundStyle(theme.color(.textSecondary))
-                        .fcTypography(.caption)
+                        .fcTypography(.bodyM)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-        }
-    }
-
-    @ViewBuilder
-    private func metadataRow(label: String, value: String) -> some View {
-        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
-        HStack(spacing: FCSpacingToken.s8.rawValue) {
-            Text(label)
-                .foregroundStyle(theme.color(.textTertiary))
-                .fcTypography(.caption)
-            Spacer()
-            Text(value)
-                .foregroundStyle(theme.color(.textSecondary))
-                .lineLimit(1)
-                .fcTypography(.caption)
         }
     }
 }

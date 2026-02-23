@@ -270,20 +270,30 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .appearance: return "Appearance"
-        case .guidance:   return "Guidance"
+        case .guidance: return "Guidance"
         case .teleprompter: return "Teleprompter"
-        case .external:   return "External"
-        case .browser:    return "Remote"
+        case .external: return "External"
+        case .browser: return "Remote"
         }
     }
 
     var icon: String {
         switch self {
         case .appearance: return "paintpalette"
-        case .guidance:   return "waveform"
+        case .guidance: return "waveform"
         case .teleprompter: return "macwindow"
-        case .external:   return "rectangle.on.rectangle"
-        case .browser:    return "antenna.radiowaves.left.and.right"
+        case .external: return "rectangle.on.rectangle"
+        case .browser: return "antenna.radiowaves.left.and.right"
+        }
+    }
+
+    var accent: FCColorToken {
+        switch self {
+        case .appearance: return .accentPrimary
+        case .guidance: return .accentInfo
+        case .teleprompter: return .accentCTA
+        case .external: return .stateSuccess
+        case .browser: return .accentInfo
         }
     }
 }
@@ -293,96 +303,44 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 struct SettingsView: View {
     @Bindable var settings: NotchSettings
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @State private var previewController = NotchPreviewController()
     @State private var selectedTab: SettingsTab = .appearance
     @State private var showResetConfirmation = false
 
+    @State private var availableMics: [AudioInputDevice] = []
+    @State private var overlayScreens: [NSScreen] = []
+    @State private var availableScreens: [NSScreen] = []
+
+    @State private var localIP: String = BrowserServer.localIPAddress() ?? "localhost"
+    @State private var showAdvanced: Bool = false
+    @State private var browserPortInput: String = ""
+    @State private var browserPortValidation: String?
+
+    private var theme: FCTheme {
+        FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+    }
+
+    private var browserURL: String {
+        "http://\(localIP):\(settings.browserServerPort)"
+    }
+
     var body: some View {
-        HStack(spacing: 0) {
-            // Sidebar
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Settings")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-                    .textCase(.uppercase)
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 6)
-
-                ForEach(SettingsTab.allCases) { tab in
-                    Button {
-                        selectedTab = tab
-                    } label: {
-                        HStack(spacing: 7) {
-                            Image(systemName: tab.icon)
-                                .font(.system(size: 12, weight: .medium))
-                                .frame(width: 16)
-                            Text(tab.label)
-                                .font(.system(size: 13, weight: .regular))
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .background(selectedTab == tab ? Color.accentColor.opacity(0.15) : Color.clear)
-                        .foregroundStyle(selectedTab == tab ? Color.accentColor : .primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Spacer()
-            }
-            .padding(12)
-            .frame(width: 155)
-            .frame(maxHeight: .infinity)
-            .background(Color.primary.opacity(0.04))
-
-            Divider()
-
-            // Content
-            VStack(spacing: 0) {
-                switch selectedTab {
-                case .appearance:
-                    appearanceTab
-                case .guidance:
-                    guidanceTab
-                case .teleprompter:
-                    teleprompterTab
-                case .external:
-                    externalTab
-                case .browser:
-                    browserTab
-                }
-
-                Divider()
-
-                HStack {
-                    Button("Reset All") {
-                        showResetConfirmation = true
-                    }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
-                    .controlSize(.regular)
-
-                    Spacer()
-
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
-                }
-                .padding(12)
-            }
-            .frame(maxWidth: .infinity)
+        FCSettingsShell(sidebarWidth: 155) {
+            sidebar
+        } content: {
+            tabContent
+        } footer: {
+            footer
         }
         .frame(width: 500)
         .frame(minHeight: 280, maxHeight: 500)
-        .background(.ultraThinMaterial)
         .alert("Reset All Settings?", isPresented: $showResetConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Reset", role: .destructive) {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(theme.animation(.base)) {
                     resetAllSettings()
                 }
             }
@@ -390,6 +348,7 @@ struct SettingsView: View {
             Text("This will restore all settings to their defaults.")
         }
         .onAppear {
+            syncDerivedState()
             if settings.overlayMode != .fullscreen {
                 previewController.show(settings: settings)
                 if settings.followCursorWhenUndocked && settings.overlayMode == .floating {
@@ -434,145 +393,200 @@ struct SettingsView: View {
                 }
             }
         }
+        .onChange(of: settings.browserServerPort) { _, newPort in
+            let value = String(newPort)
+            if browserPortInput != value {
+                browserPortInput = value
+            }
+            validateBrowserPortInput(browserPortInput)
+        }
+        .onChange(of: selectedTab) { _, tab in
+            if tab == .guidance {
+                availableMics = AudioInputDevice.allInputDevices()
+            }
+            if tab == .teleprompter {
+                refreshOverlayScreens()
+            }
+            if tab == .external {
+                refreshScreens()
+            }
+            if tab == .browser {
+                localIP = BrowserServer.localIPAddress() ?? "localhost"
+            }
+        }
+    }
+
+    private var sidebar: some View {
+        FCSettingsTabRail(title: "Settings", tabs: SettingsTab.allCases, selectedTab: $selectedTab) { tab, isSelected in
+            HStack(spacing: FCSpacingToken.s8.rawValue) {
+                Image(systemName: tab.icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 16)
+                Text(tab.label)
+                    .fcTypography(.bodyM)
+            }
+            .foregroundStyle(isSelected ? theme.color(tab.accent) : theme.color(.textSecondary))
+        }
+    }
+
+    private var tabContent: some View {
+        Group {
+            switch selectedTab {
+            case .appearance:
+                appearanceTab
+            case .guidance:
+                guidanceTab
+            case .teleprompter:
+                teleprompterTab
+            case .external:
+                externalTab
+            case .browser:
+                browserTab
+            }
+        }
+    }
+
+    private var footer: some View {
+        HStack {
+            Button("Reset All") {
+                showResetConfirmation = true
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(theme.color(.textSecondary))
+            .fcTypography(.label)
+            .padding(.horizontal, FCSpacingToken.s12.rawValue)
+            .padding(.vertical, FCSpacingToken.s8.rawValue)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(theme.color(.surfaceOverlay).opacity(0.85))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+            )
+
+            Spacer()
+
+            Button("Done") {
+                dismiss()
+            }
+            .keyboardShortcut(.defaultAction)
+            .buttonStyle(.plain)
+            .foregroundStyle(.white)
+            .fcTypography(.label)
+            .padding(.horizontal, FCSpacingToken.s20.rawValue)
+            .padding(.vertical, FCSpacingToken.s8.rawValue)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [theme.color(.accentInfo), theme.color(.accentPrimary)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+            )
+        }
     }
 
     // MARK: - Appearance Tab
 
     private var appearanceTab: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 14) {
-                // Font Family
-                Text("Font")
-                    .font(.system(size: 13, weight: .medium))
-
-                HStack(spacing: 8) {
+        settingsScroll {
+            FCSettingsSectionCard(title: "Font", subtitle: "Choose the teleprompter type style.") {
+                HStack(spacing: FCSpacingToken.s8.rawValue) {
                     ForEach(FontFamilyPreset.allCases) { preset in
                         Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(theme.animation(.base)) {
                                 settings.fontFamilyPreset = preset
                             }
                         } label: {
-                            VStack(spacing: 6) {
-                                Text("Ag")
-                                    .font(Font(preset.font(size: 16)))
-                                    .foregroundStyle(settings.fontFamilyPreset == preset ? Color.accentColor : .primary)
-                                Text(preset.label)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(settings.fontFamilyPreset == preset ? Color.accentColor : .secondary)
+                            FCSettingsOptionCard(isSelected: settings.fontFamilyPreset == preset, accent: .accentInfo) {
+                                VStack(spacing: FCSpacingToken.s4.rawValue) {
+                                    Text(preset.sampleText)
+                                        .font(Font(preset.font(size: 18)))
+                                        .foregroundStyle(settings.fontFamilyPreset == preset ? theme.color(.accentInfo) : theme.color(.textPrimary))
+                                    Text(preset.label)
+                                        .foregroundStyle(settings.fontFamilyPreset == preset ? theme.color(.accentInfo) : theme.color(.textSecondary))
+                                        .fcTypography(.caption)
+                                }
+                                .frame(maxWidth: .infinity)
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(settings.fontFamilyPreset == preset ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.05))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .strokeBorder(settings.fontFamilyPreset == preset ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1.5)
-                            )
                         }
                         .buttonStyle(.plain)
                     }
                 }
+            }
 
-                // Text Size
-                Text("Size")
-                    .font(.system(size: 13, weight: .medium))
-
-                HStack(spacing: 8) {
+            FCSettingsSectionCard(title: "Size", subtitle: "Set default text size in the overlay.") {
+                HStack(spacing: FCSpacingToken.s8.rawValue) {
                     ForEach(FontSizePreset.allCases) { preset in
                         Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(theme.animation(.base)) {
                                 settings.fontSizePreset = preset
                             }
                         } label: {
-                            VStack(spacing: 6) {
-                                Text("Ag")
-                                    .font(Font(settings.fontFamilyPreset.font(size: preset.pointSize * 0.7)))
-                                    .foregroundStyle(settings.fontSizePreset == preset ? Color.accentColor : .primary)
-                                Text(preset.label)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(settings.fontSizePreset == preset ? Color.accentColor : .secondary)
+                            FCSettingsOptionCard(isSelected: settings.fontSizePreset == preset, accent: .accentPrimary) {
+                                VStack(spacing: FCSpacingToken.s4.rawValue) {
+                                    Text("Ag")
+                                        .font(Font(settings.fontFamilyPreset.font(size: preset.pointSize * 0.7)))
+                                        .foregroundStyle(settings.fontSizePreset == preset ? theme.color(.accentPrimary) : theme.color(.textPrimary))
+                                    Text(preset.label)
+                                        .foregroundStyle(settings.fontSizePreset == preset ? theme.color(.accentPrimary) : theme.color(.textSecondary))
+                                        .fcTypography(.caption)
+                                }
+                                .frame(maxWidth: .infinity)
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(settings.fontSizePreset == preset ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.05))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .strokeBorder(settings.fontSizePreset == preset ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1.5)
-                            )
                         }
                         .buttonStyle(.plain)
                     }
                 }
+            }
 
-                Divider()
-
-                // Highlight Color
-                Text("Highlight Color")
-                    .font(.system(size: 13, weight: .medium))
-
-                HStack(spacing: 8) {
+            FCSettingsSectionCard(title: "Highlight Color", subtitle: "Color used for focused words while reading.") {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: FCSpacingToken.s8.rawValue)], spacing: FCSpacingToken.s8.rawValue) {
                     ForEach(FontColorPreset.allCases) { preset in
                         Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(theme.animation(.base)) {
                                 settings.fontColorPreset = preset
                             }
                         } label: {
-                            VStack(spacing: 6) {
-                                Circle()
-                                    .fill(preset.color)
-                                    .frame(width: 22, height: 22)
-                                    .overlay(
-                                        Circle()
-                                            .strokeBorder(Color.primary.opacity(0.15), lineWidth: 1)
-                                    )
-                                    .overlay(
-                                        settings.fontColorPreset == preset
-                                            ? Image(systemName: "checkmark")
-                                                .font(.system(size: 10, weight: .bold))
-                                                .foregroundStyle(preset == .white ? .black : .white)
-                                            : nil
-                                    )
-                                Text(preset.label)
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(settings.fontColorPreset == preset ? .primary : .secondary)
+                            FCSettingsOptionCard(isSelected: settings.fontColorPreset == preset, accent: .accentCTA) {
+                                VStack(spacing: FCSpacingToken.s4.rawValue) {
+                                    Circle()
+                                        .fill(preset.color)
+                                        .frame(width: 22, height: 22)
+                                        .overlay(
+                                            Circle()
+                                                .strokeBorder(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+                                        )
+                                        .overlay(
+                                            Group {
+                                                if settings.fontColorPreset == preset {
+                                                    Image(systemName: "checkmark")
+                                                        .font(.system(size: 10, weight: .bold))
+                                                        .foregroundStyle(preset == .white ? .black : .white)
+                                                }
+                                            }
+                                        )
+                                    Text(preset.label)
+                                        .foregroundStyle(settings.fontColorPreset == preset ? theme.color(.textPrimary) : theme.color(.textSecondary))
+                                        .fcTypography(.caption)
+                                }
+                                .frame(maxWidth: .infinity)
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(settings.fontColorPreset == preset ? preset.color.opacity(0.1) : Color.primary.opacity(0.05))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .strokeBorder(settings.fontColorPreset == preset ? preset.color.opacity(0.4) : Color.clear, lineWidth: 1.5)
-                            )
                         }
                         .buttonStyle(.plain)
                     }
                 }
+            }
 
-                Divider()
-
-                // Dimensions
-                Text("Dimensions")
-                    .font(.system(size: 13, weight: .medium))
-
-                VStack(spacing: 10) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Width")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text("\(Int(settings.notchWidth))px")
-                                .font(.system(size: 11, weight: .regular, design: .monospaced))
-                                .foregroundStyle(.tertiary)
-                        }
+            FCSettingsSectionCard(title: "Dimensions", subtitle: "Tune notch panel size.") {
+                VStack(spacing: FCSpacingToken.s12.rawValue) {
+                    sliderControl(
+                        title: "Width",
+                        valueLabel: "\(Int(settings.notchWidth))px"
+                    ) {
                         Slider(
                             value: $settings.notchWidth,
                             in: NotchSettings.minWidth...NotchSettings.maxWidth,
@@ -580,16 +594,10 @@ struct SettingsView: View {
                         )
                     }
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Height")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text("\(Int(settings.textAreaHeight))px")
-                                .font(.system(size: 11, weight: .regular, design: .monospaced))
-                                .foregroundStyle(.tertiary)
-                        }
+                    sliderControl(
+                        title: "Height",
+                        valueLabel: "\(Int(settings.textAreaHeight))px"
+                    ) {
                         Slider(
                             value: $settings.textAreaHeight,
                             in: NotchSettings.minHeight...NotchSettings.maxHeight,
@@ -598,542 +606,592 @@ struct SettingsView: View {
                     }
                 }
             }
-            .padding(16)
         }
     }
 
     // MARK: - Guidance Tab
 
     private var guidanceTab: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-        VStack(alignment: .leading, spacing: 14) {
-            // Speech Backend
-            Text("Speech Backend")
-                .font(.system(size: 13, weight: .medium))
-
-            Picker("", selection: $settings.speechBackend) {
-                ForEach(SpeechBackend.allCases) { backend in
-                    Text(backend.label).tag(backend)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-
-            Text(settings.speechBackend.description)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-
-            if settings.speechBackend == .deepgram {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("API Key")
-                        .font(.system(size: 13, weight: .medium))
-                    HStack(spacing: 8) {
-                        SecureField("Paste your Deepgram API key", text: Binding(
-                            get: { settings.deepgramAPIKey },
-                            set: { settings.deepgramAPIKey = $0 }
-                        ))
-                        .textFieldStyle(.roundedBorder)
-                        if !settings.deepgramAPIKey.isEmpty {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
+        settingsScroll {
+            FCSettingsSectionCard(title: "Speech Backend") {
+                VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                    Picker("", selection: $settings.speechBackend) {
+                        ForEach(SpeechBackend.allCases) { backend in
+                            Text(backend.label).tag(backend)
                         }
                     }
-                    Link("Get a free API key", destination: URL(string: "https://console.deepgram.com")!)
-                        .font(.system(size: 11))
-                }
-            }
-
-            Divider()
-
-            // OpenAI
-            Text("OpenAI")
-                .font(.system(size: 13, weight: .semibold))
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("API Key")
-                    .font(.system(size: 13, weight: .medium))
-                HStack(spacing: 8) {
-                    SecureField("Paste your OpenAI API key", text: Binding(
-                        get: { settings.openaiAPIKey },
-                        set: { settings.openaiAPIKey = $0 }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                    if !settings.openaiAPIKey.isEmpty {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                    }
-                }
-                Text("Used for Smart Resync and script refinement.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Link("Get an API key", destination: URL(string: "https://platform.openai.com/api-keys")!)
-                    .font(.system(size: 11))
-            }
-
-            Toggle(isOn: $settings.llmResyncEnabled) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Smart Resync")
-                        .font(.system(size: 13, weight: .medium))
-                    Text("Uses AI to re-sync the teleprompter when you paraphrase or go off-script.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .toggleStyle(.switch)
-            .controlSize(.small)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Refinement Model")
-                    .font(.system(size: 13, weight: .medium))
-                Picker("", selection: $settings.refinementModel) {
-                    Text("GPT-4o").tag("gpt-4o")
-                    Text("GPT-4o Mini").tag("gpt-4o-mini")
-                    Text("GPT-5.2").tag("gpt-5.2")
-                }
-                .labelsHidden()
-                .frame(width: 160)
-                Text("Model used when refining drafts with AI.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
-
-            Divider()
-
-            Picker("", selection: $settings.listeningMode) {
-                ForEach(ListeningMode.allCases) { mode in
-                    Text(mode.label).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-
-            Text(settings.listeningMode.description)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-
-            if settings.listeningMode == .wordTracking {
-                Divider()
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Speech Language")
-                        .font(.system(size: 13, weight: .medium))
-                    Picker("", selection: $settings.speechLocale) {
-                        ForEach(SFSpeechRecognizer.supportedLocales().sorted(by: { $0.identifier < $1.identifier }), id: \.identifier) { locale in
-                            Text(Locale.current.localizedString(forIdentifier: locale.identifier) ?? locale.identifier)
-                                .tag(locale.identifier)
-                        }
-                    }
+                    .pickerStyle(.segmented)
                     .labelsHidden()
+
+                    Text(settings.speechBackend.description)
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .fcTypography(.caption)
                 }
             }
 
-            if settings.listeningMode != .classic {
-                Divider()
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Microphone")
-                        .font(.system(size: 13, weight: .medium))
-                    Picker("", selection: $settings.selectedMicUID) {
-                        Text("System Default").tag("")
-                        ForEach(availableMics) { mic in
-                            Text(mic.name).tag(mic.uid)
-                        }
+            FCSettingsSectionCard(title: "Provider Keys", subtitle: "Stored securely in Keychain.") {
+                VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                    if settings.speechBackend == .deepgram {
+                        providerKeyField(
+                            title: "Deepgram API Key",
+                            placeholder: "Paste your Deepgram API key",
+                            text: Binding(
+                                get: { settings.deepgramAPIKey },
+                                set: { settings.deepgramAPIKey = $0 }
+                            ),
+                            helpText: "Get a free API key",
+                            helpURL: URL(string: "https://console.deepgram.com")!
+                        )
                     }
-                    .labelsHidden()
-                }
-            }
 
-            if settings.listeningMode != .wordTracking {
-                Divider()
-
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("Scroll Speed")
-                            .font(.system(size: 13, weight: .medium))
-                        Spacer()
-                        Text(String(format: "%.1f words/s", settings.scrollSpeed))
-                            .font(.system(size: 12, weight: .regular, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(
-                        value: $settings.scrollSpeed,
-                        in: 0.5...8,
-                        step: 0.5
+                    providerKeyField(
+                        title: "OpenAI API Key",
+                        placeholder: "Paste your OpenAI API key",
+                        text: Binding(
+                            get: { settings.openaiAPIKey },
+                            set: { settings.openaiAPIKey = $0 }
+                        ),
+                        description: "Used for Smart Resync and script refinement.",
+                        helpText: "Get an API key",
+                        helpURL: URL(string: "https://platform.openai.com/api-keys")!
                     )
-                    HStack {
-                        Text("Slower")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                        Spacer()
-                        Text("Faster")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
+                }
+            }
+
+            FCSettingsSectionCard(title: "Smart Resync") {
+                VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                    Toggle(isOn: $settings.llmResyncEnabled) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Enable Smart Resync")
+                                .foregroundStyle(theme.color(.textPrimary))
+                                .fcTypography(.label)
+                            Text("Uses AI to re-sync the teleprompter when you paraphrase or go off-script.")
+                                .foregroundStyle(theme.color(.textSecondary))
+                                .fcTypography(.caption)
+                        }
+                    }
+                    .toggleStyle(.switch)
+
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
+                        Text("Refinement Model")
+                            .foregroundStyle(theme.color(.textSecondary))
+                            .fcTypography(.caption)
+                        Picker("", selection: $settings.refinementModel) {
+                            Text("GPT-4o").tag("gpt-4o")
+                            Text("GPT-4o Mini").tag("gpt-4o-mini")
+                            Text("GPT-5.2").tag("gpt-5.2")
+                        }
+                        .labelsHidden()
+                        .frame(width: 200)
                     }
                 }
             }
 
-            Spacer()
-        }
-        .padding(16)
-        }
-        .onAppear { availableMics = AudioInputDevice.allInputDevices() }
-    }
-
-    @State private var availableMics: [AudioInputDevice] = []
-
-    // MARK: - Teleprompter Tab
-
-    @State private var overlayScreens: [NSScreen] = []
-
-    private var teleprompterTab: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 14) {
-                // Overlay mode picker
-                Picker("", selection: $settings.overlayMode) {
-                    ForEach(OverlayMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-
-                Text(settings.overlayMode.description)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-
-                if settings.overlayMode == .pinned {
-                    Divider()
-
-                    Text("Display")
-                        .font(.system(size: 13, weight: .medium))
-
-                    Picker("", selection: $settings.notchDisplayMode) {
-                        ForEach(NotchDisplayMode.allCases) { mode in
+            FCSettingsSectionCard(title: "Listening Mode") {
+                VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                    Picker("", selection: $settings.listeningMode) {
+                        ForEach(ListeningMode.allCases) { mode in
                             Text(mode.label).tag(mode)
                         }
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
 
-                    Text(settings.notchDisplayMode.description)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                    Text(settings.listeningMode.description)
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .fcTypography(.caption)
 
-                    if settings.notchDisplayMode == .fixedDisplay {
-                        displayPicker(
-                            screens: overlayScreens,
-                            selectedID: $settings.pinnedScreenID,
-                            onRefresh: { refreshOverlayScreens() }
-                        )
+                    if settings.listeningMode == .wordTracking {
+                        VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
+                            Text("Speech Language")
+                                .foregroundStyle(theme.color(.textSecondary))
+                                .fcTypography(.caption)
+                            Picker("", selection: $settings.speechLocale) {
+                                ForEach(SFSpeechRecognizer.supportedLocales().sorted(by: { $0.identifier < $1.identifier }), id: \.identifier) { locale in
+                                    Text(Locale.current.localizedString(forIdentifier: locale.identifier) ?? locale.identifier)
+                                        .tag(locale.identifier)
+                                }
+                            }
+                            .labelsHidden()
+                        }
                     }
                 }
+            }
 
-                if settings.overlayMode == .floating {
-                    Divider()
-
-                    Toggle(isOn: $settings.followCursorWhenUndocked) {
-                        Text("Follow Cursor")
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-
-                    Text("The window follows your cursor and sticks to its bottom-right.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-
-                    Divider()
-
-                    Toggle(isOn: $settings.floatingGlassEffect) {
-                        Text("Glass Effect")
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-
-                    if settings.floatingGlassEffect {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text("Opacity")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Text("\(Int(settings.glassOpacity * 100))%")
-                                    .font(.system(size: 11, weight: .regular, design: .monospaced))
-                                    .foregroundStyle(.tertiary)
+            if settings.listeningMode != .classic {
+                FCSettingsSectionCard(title: "Input Device") {
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                        Text("Microphone")
+                            .foregroundStyle(theme.color(.textSecondary))
+                            .fcTypography(.caption)
+                        Picker("", selection: $settings.selectedMicUID) {
+                            Text("System Default").tag("")
+                            ForEach(availableMics) { mic in
+                                Text(mic.name).tag(mic.uid)
                             }
+                        }
+                        .labelsHidden()
+                    }
+                }
+            }
+
+            if settings.listeningMode != .wordTracking {
+                FCSettingsSectionCard(title: "Scroll") {
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                        sliderControl(
+                            title: "Scroll Speed",
+                            valueLabel: String(format: "%.1f words/s", settings.scrollSpeed)
+                        ) {
                             Slider(
-                                value: $settings.glassOpacity,
-                                in: 0.0...0.6,
-                                step: 0.05
+                                value: $settings.scrollSpeed,
+                                in: 0.5...8,
+                                step: 0.5
+                            )
+                        }
+
+                        HStack {
+                            Text("Slower")
+                                .foregroundStyle(theme.color(.textTertiary))
+                                .fcTypography(.caption)
+                            Spacer()
+                            Text("Faster")
+                                .foregroundStyle(theme.color(.textTertiary))
+                                .fcTypography(.caption)
+                        }
+                    }
+                }
+            }
+        }
+        .onAppear {
+            availableMics = AudioInputDevice.allInputDevices()
+        }
+    }
+
+    // MARK: - Teleprompter Tab
+
+    private var teleprompterTab: some View {
+        settingsScroll {
+            FCSettingsSectionCard(title: "Overlay Mode") {
+                VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                    Picker("", selection: $settings.overlayMode) {
+                        ForEach(OverlayMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    Text(settings.overlayMode.description)
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .fcTypography(.caption)
+                }
+            }
+
+            if settings.overlayMode == .pinned {
+                FCSettingsSectionCard(title: "Pinned Display") {
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                        Picker("", selection: $settings.notchDisplayMode) {
+                            ForEach(NotchDisplayMode.allCases) { mode in
+                                Text(mode.label).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+
+                        Text(settings.notchDisplayMode.description)
+                            .foregroundStyle(theme.color(.textSecondary))
+                            .fcTypography(.caption)
+
+                        if settings.notchDisplayMode == .fixedDisplay {
+                            displayPicker(
+                                screens: overlayScreens,
+                                selectedID: $settings.pinnedScreenID,
+                                onRefresh: { refreshOverlayScreens() }
                             )
                         }
                     }
                 }
+            }
 
-                if settings.overlayMode == .fullscreen {
-                    Divider()
-
-                    Text("Display")
-                        .font(.system(size: 13, weight: .medium))
-
-                    displayPicker(
-                        screens: overlayScreens,
-                        selectedID: $settings.fullscreenScreenID,
-                        onRefresh: { refreshOverlayScreens() }
-                    )
-
-                    HStack(spacing: 6) {
-                        Image(systemName: "escape")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        Text("Press Esc to stop the teleprompter.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.primary.opacity(0.04))
-                    )
-                }
-
-                Divider()
-
-                // Options
-                Toggle(isOn: $settings.showElapsedTime) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Elapsed Time")
-                            .font(.system(size: 13, weight: .medium))
-                        Text("Display a running timer while the teleprompter is active.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .toggleStyle(.checkbox)
-
-                Toggle(isOn: $settings.hideFromScreenShare) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Hide from Screen Sharing")
-                            .font(.system(size: 13, weight: .medium))
-                        Text("Hide the overlay from screen recordings and video calls.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .toggleStyle(.checkbox)
-
-                Divider()
-
-                // Pagination
-                Text("Pagination")
-                    .font(.system(size: 13, weight: .semibold))
-
-                Toggle(isOn: $settings.autoNextPage) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Auto Next Page")
-                            .font(.system(size: 13, weight: .medium))
-                        Text("Automatically advance to the next page after a countdown.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .toggleStyle(.checkbox)
-
-                if settings.autoNextPage {
-                    HStack {
-                        Text("Countdown")
-                            .font(.system(size: 13))
-                        Spacer()
-                        Picker("", selection: $settings.autoNextPageDelay) {
-                            Text("3 seconds").tag(3)
-                            Text("5 seconds").tag(5)
+            if settings.overlayMode == .floating {
+                FCSettingsSectionCard(title: "Floating Window") {
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                        Toggle(isOn: $settings.followCursorWhenUndocked) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Follow Cursor")
+                                    .foregroundStyle(theme.color(.textPrimary))
+                                    .fcTypography(.label)
+                                Text("The window follows your cursor and sticks to its bottom-right.")
+                                    .foregroundStyle(theme.color(.textSecondary))
+                                    .fcTypography(.caption)
+                            }
                         }
-                        .pickerStyle(.segmented)
-                        .frame(width: 160)
+                        .toggleStyle(.switch)
+
+                        Toggle(isOn: $settings.floatingGlassEffect) {
+                            Text("Glass Effect")
+                                .foregroundStyle(theme.color(.textPrimary))
+                                .fcTypography(.label)
+                        }
+                        .toggleStyle(.switch)
+
+                        if settings.floatingGlassEffect {
+                            sliderControl(
+                                title: "Opacity",
+                                valueLabel: "\(Int(settings.glassOpacity * 100))%"
+                            ) {
+                                Slider(
+                                    value: $settings.glassOpacity,
+                                    in: 0.0...0.6,
+                                    step: 0.05
+                                )
+                            }
+                        }
                     }
                 }
             }
-            .padding(16)
+
+            if settings.overlayMode == .fullscreen {
+                FCSettingsSectionCard(title: "Fullscreen Display") {
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                        displayPicker(
+                            screens: overlayScreens,
+                            selectedID: $settings.fullscreenScreenID,
+                            onRefresh: { refreshOverlayScreens() }
+                        )
+
+                        FCSettingsInlineNotice(kind: .info, text: "Press Esc to stop the teleprompter.")
+                    }
+                }
+            }
+
+            FCSettingsSectionCard(title: "Visibility") {
+                VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                    Toggle(isOn: $settings.showElapsedTime) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Elapsed Time")
+                                .foregroundStyle(theme.color(.textPrimary))
+                                .fcTypography(.label)
+                            Text("Display a running timer while the teleprompter is active.")
+                                .foregroundStyle(theme.color(.textSecondary))
+                                .fcTypography(.caption)
+                        }
+                    }
+                    .toggleStyle(.checkbox)
+
+                    Toggle(isOn: $settings.hideFromScreenShare) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Hide from Screen Sharing")
+                                .foregroundStyle(theme.color(.textPrimary))
+                                .fcTypography(.label)
+                            Text("Hide the overlay from screen recordings and video calls.")
+                                .foregroundStyle(theme.color(.textSecondary))
+                                .fcTypography(.caption)
+                        }
+                    }
+                    .toggleStyle(.checkbox)
+                }
+            }
+
+            FCSettingsSectionCard(title: "Pagination") {
+                VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                    Toggle(isOn: $settings.autoNextPage) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Auto Next Page")
+                                .foregroundStyle(theme.color(.textPrimary))
+                                .fcTypography(.label)
+                            Text("Automatically advance to the next page after a countdown.")
+                                .foregroundStyle(theme.color(.textSecondary))
+                                .fcTypography(.caption)
+                        }
+                    }
+                    .toggleStyle(.checkbox)
+
+                    if settings.autoNextPage {
+                        HStack(spacing: FCSpacingToken.s8.rawValue) {
+                            Text("Countdown")
+                                .foregroundStyle(theme.color(.textSecondary))
+                                .fcTypography(.caption)
+                            Spacer()
+                            Picker("", selection: $settings.autoNextPageDelay) {
+                                Text("3 seconds").tag(3)
+                                Text("5 seconds").tag(5)
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(width: 180)
+                        }
+                    }
+                }
+            }
         }
-        .onAppear { refreshOverlayScreens() }
+        .onAppear {
+            refreshOverlayScreens()
+        }
     }
 
     // MARK: - External Tab
 
-    @State private var availableScreens: [NSScreen] = []
-
     private var externalTab: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Show the teleprompter on an external display or Sidecar iPad.")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+        settingsScroll {
+            FCSettingsSectionCard(title: "External Output", subtitle: "Show the teleprompter on an external display or Sidecar iPad.") {
+                VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                    Picker("", selection: $settings.externalDisplayMode) {
+                        ForEach(ExternalDisplayMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
 
-            Picker("", selection: $settings.externalDisplayMode) {
-                ForEach(ExternalDisplayMode.allCases) { mode in
-                    Text(mode.label).tag(mode)
+                    Text(settings.externalDisplayMode.description)
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .fcTypography(.caption)
                 }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-
-            Text(settings.externalDisplayMode.description)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
 
             if settings.externalDisplayMode == .mirror {
-                Divider()
+                FCSettingsSectionCard(title: "Mirror Axis") {
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                        Picker("", selection: $settings.mirrorAxis) {
+                            ForEach(MirrorAxis.allCases) { axis in
+                                Text(axis.label).tag(axis)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
 
-                Text("Mirror Axis")
-                    .font(.system(size: 13, weight: .medium))
-
-                Picker("", selection: $settings.mirrorAxis) {
-                    ForEach(MirrorAxis.allCases) { axis in
-                        Text(axis.label).tag(axis)
+                        Text(settings.mirrorAxis.description)
+                            .foregroundStyle(theme.color(.textSecondary))
+                            .fcTypography(.caption)
                     }
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-
-                Text(settings.mirrorAxis.description)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
             }
 
             if settings.externalDisplayMode != .off {
-                Divider()
-
-                Text("Target Display")
-                    .font(.system(size: 13, weight: .medium))
-
-                displayPicker(
-                    screens: availableScreens,
-                    selectedID: $settings.externalScreenID,
-                    onRefresh: { refreshScreens() },
-                    emptyMessage: "No external displays detected. Connect a display or enable Sidecar."
-                )
+                FCSettingsSectionCard(title: "Target Display") {
+                    displayPicker(
+                        screens: availableScreens,
+                        selectedID: $settings.externalScreenID,
+                        onRefresh: { refreshScreens() },
+                        emptyMessage: "No external displays detected. Connect a display or enable Sidecar."
+                    )
+                }
             }
-            Spacer()
         }
-        .padding(16)
-        .onAppear { refreshScreens() }
+        .onAppear {
+            refreshScreens()
+        }
     }
 
     // MARK: - Remote Tab
 
-    @State private var localIP: String = BrowserServer.localIPAddress() ?? "localhost"
-    @State private var showAdvanced: Bool = false
-
     private var browserTab: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Scan the QR code or open the URL with your iPhone, Android or TV browser on the same Wi-Fi network.")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-
-            Toggle(isOn: $settings.browserServerEnabled) {
-                Text("Enable Remote Connection")
-                    .font(.system(size: 13, weight: .medium))
+        settingsScroll {
+            FCSettingsSectionCard(title: "Connection", subtitle: "Use your phone or TV browser on the same Wi-Fi network.") {
+                Toggle(isOn: $settings.browserServerEnabled) {
+                    Text("Enable Remote Connection")
+                        .foregroundStyle(theme.color(.textPrimary))
+                        .fcTypography(.label)
+                }
+                .toggleStyle(.switch)
             }
-            .toggleStyle(.switch)
-            .controlSize(.small)
 
             if settings.browserServerEnabled {
-                Divider()
-
-                let url = "http://\(localIP):\(settings.browserServerPort)"
-
-                if let qrImage = generateQRCode(from: url) {
-                    HStack {
-                        Spacer()
-                        Image(nsImage: qrImage)
-                            .interpolation(.none)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 120, height: 120)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                        Spacer()
-                    }
-                }
-
-                HStack(spacing: 10) {
-                    Text(url)
-                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(Color.accentColor)
-                        .textSelection(.enabled)
-
-                    Button {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(url, forType: .string)
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.accentColor.opacity(0.08))
-                )
-
-                DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Port")
-                                .font(.system(size: 13, weight: .medium))
-                            HStack(spacing: 8) {
-                                TextField("Port", text: Binding(
-                                    get: { String(settings.browserServerPort) },
-                                    set: { str in
-                                        if let val = UInt16(str), val >= 1024 {
-                                            settings.browserServerPort = val
-                                        }
-                                    }
-                                ))
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 80)
-
-                                Text("Restart required after change")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.tertiary)
-
+                FCSettingsSectionCard(title: "Remote URL") {
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                        if let qrImage = generateQRCode(from: browserURL) {
+                            HStack {
                                 Spacer()
-
-                                Button("Restart") {
-                                    FocusCueService.shared.browserServer.stop()
-                                    FocusCueService.shared.browserServer.start()
-                                    localIP = BrowserServer.localIPAddress() ?? "localhost"
-                                }
-                                .controlSize(.small)
-                                .buttonStyle(.bordered)
+                                Image(nsImage: qrImage)
+                                    .interpolation(.none)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 124, height: 124)
+                                    .clipShape(RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
+                                            .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+                                    )
+                                Spacer()
                             }
                         }
 
-                        HStack(spacing: 6) {
-                            Image(systemName: "info.circle")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                            Text("Uses ports \(String(settings.browserServerPort)) (HTTP) and \(String(settings.browserServerPort + 1)) (WebSocket).")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.top, 8)
-                }
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
-            }
+                        HStack(spacing: FCSpacingToken.s8.rawValue) {
+                            Text(browserURL)
+                                .foregroundStyle(theme.color(.accentInfo))
+                                .fcTypography(.mono)
+                                .textSelection(.enabled)
+                                .lineLimit(1)
 
-            Spacer()
+                            Button {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(browserURL, forType: .string)
+                            } label: {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(theme.color(.textSecondary))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Copy remote URL")
+                            .help("Copy URL")
+                        }
+                        .padding(FCSpacingToken.s12.rawValue)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .background(
+                            RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
+                                .fill(theme.color(.accentInfo).opacity(0.10))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
+                                .stroke(theme.color(.accentInfo).opacity(0.28), lineWidth: FCStrokeToken.thin.rawValue)
+                        )
+                    }
+                }
+
+                FCSettingsSectionCard(title: "Advanced") {
+                    DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
+                        VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                            HStack(alignment: .top, spacing: FCSpacingToken.s8.rawValue) {
+                                VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
+                                    Text("Port")
+                                        .foregroundStyle(theme.color(.textSecondary))
+                                        .fcTypography(.caption)
+
+                                    TextField("Port", text: $browserPortInput)
+                                        .textFieldStyle(.plain)
+                                        .padding(.horizontal, FCSpacingToken.s8.rawValue)
+                                        .padding(.vertical, FCSpacingToken.s8.rawValue)
+                                        .frame(width: 96)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
+                                                .fill(theme.color(.surfaceOverlay).opacity(0.82))
+                                        )
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
+                                                .stroke(
+                                                    browserPortValidation == nil ? theme.color(.borderSubtle) : theme.color(.stateWarning),
+                                                    lineWidth: FCStrokeToken.thin.rawValue
+                                                )
+                                        )
+                                        .onChange(of: browserPortInput) { _, newValue in
+                                            validateBrowserPortInput(newValue)
+                                            guard browserPortValidation == nil, let val = UInt16(newValue), val >= 1024 else { return }
+                                            settings.browserServerPort = val
+                                        }
+                                }
+
+                                VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
+                                    Text("Restart required after change")
+                                        .foregroundStyle(theme.color(.textTertiary))
+                                        .fcTypography(.caption)
+
+                                    Button("Restart") {
+                                        FocusCueService.shared.browserServer.stop()
+                                        FocusCueService.shared.browserServer.start()
+                                        localIP = BrowserServer.localIPAddress() ?? "localhost"
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+
+                                Spacer(minLength: 0)
+                            }
+
+                            if let browserPortValidation {
+                                FCSettingsInlineNotice(kind: .warning, text: browserPortValidation)
+                            }
+
+                            FCSettingsInlineNotice(
+                                kind: .info,
+                                text: "Uses ports \(settings.browserServerPort) (HTTP) and \(settings.browserServerPort + 1) (WebSocket)."
+                            )
+                        }
+                        .padding(.top, FCSpacingToken.s8.rawValue)
+                    }
+                    .tint(theme.color(.textSecondary))
+                    .foregroundStyle(theme.color(.textSecondary))
+                    .fcTypography(.label)
+                }
+            }
         }
-        .padding(16)
-        .onAppear { localIP = BrowserServer.localIPAddress() ?? "localhost" }
+        .onAppear {
+            localIP = BrowserServer.localIPAddress() ?? "localhost"
+        }
     }
 
     // MARK: - Shared Components
+
+    private func settingsScroll<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                content()
+            }
+            .padding(.bottom, FCSpacingToken.s8.rawValue)
+        }
+    }
+
+    private func sliderControl<Control: View>(
+        title: String,
+        valueLabel: String,
+        @ViewBuilder control: () -> Control
+    ) -> some View {
+        VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+            HStack {
+                Text(title)
+                    .foregroundStyle(theme.color(.textSecondary))
+                    .fcTypography(.caption)
+                Spacer()
+                Text(valueLabel)
+                    .foregroundStyle(theme.color(.textTertiary))
+                    .fcTypography(.mono)
+            }
+            control()
+        }
+    }
+
+    private func providerKeyField(
+        title: String,
+        placeholder: String,
+        text: Binding<String>,
+        description: String? = nil,
+        helpText: String,
+        helpURL: URL
+    ) -> some View {
+        VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+            HStack {
+                Text(title)
+                    .foregroundStyle(theme.color(.textSecondary))
+                    .fcTypography(.caption)
+                Spacer()
+                FCSettingsStatusBadge(
+                    label: text.wrappedValue.isEmpty ? "Missing" : "Configured",
+                    kind: text.wrappedValue.isEmpty ? .warning : .success
+                )
+            }
+
+            SecureField(placeholder, text: text)
+                .textFieldStyle(.plain)
+                .padding(.horizontal, FCSpacingToken.s8.rawValue)
+                .padding(.vertical, FCSpacingToken.s8.rawValue)
+                .background(
+                    RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
+                        .fill(theme.color(.surfaceOverlay).opacity(0.82))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
+                        .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+                )
+
+            if let description {
+                Text(description)
+                    .foregroundStyle(theme.color(.textTertiary))
+                    .fcTypography(.caption)
+            }
+
+            Link(helpText, destination: helpURL)
+                .foregroundStyle(theme.color(.accentInfo))
+                .fcTypography(.caption)
+        }
+    }
 
     private func displayPicker(
         screens: [NSScreen],
@@ -1141,65 +1199,54 @@ struct SettingsView: View {
         onRefresh: @escaping () -> Void,
         emptyMessage: String? = nil
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
             if screens.isEmpty, let emptyMessage {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.orange)
-                    Text(emptyMessage)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.orange.opacity(0.08))
-                )
+                FCSettingsInlineNotice(kind: .warning, text: emptyMessage)
             } else {
                 ForEach(screens, id: \.displayID) { screen in
                     Button {
-                        selectedID.wrappedValue = screen.displayID
+                        withAnimation(theme.animation(.fast)) {
+                            selectedID.wrappedValue = screen.displayID
+                        }
                     } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "display")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundStyle(selectedID.wrappedValue == screen.displayID ? Color.accentColor : .secondary)
-                                .frame(width: 24)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(screen.displayName)
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(selectedID.wrappedValue == screen.displayID ? Color.accentColor : .primary)
-                                Text("\(Int(screen.frame.width))×\(Int(screen.frame.height))")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if selectedID.wrappedValue == screen.displayID {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(Color.accentColor)
+                        FCSettingsOptionCard(isSelected: selectedID.wrappedValue == screen.displayID, accent: .accentInfo) {
+                            HStack(spacing: FCSpacingToken.s8.rawValue) {
+                                Image(systemName: "display")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundStyle(selectedID.wrappedValue == screen.displayID ? theme.color(.accentInfo) : theme.color(.textSecondary))
+                                    .frame(width: 20)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(screen.displayName)
+                                        .foregroundStyle(selectedID.wrappedValue == screen.displayID ? theme.color(.accentInfo) : theme.color(.textPrimary))
+                                        .fcTypography(.label)
+                                    Text("\(Int(screen.frame.width))×\(Int(screen.frame.height))")
+                                        .foregroundStyle(theme.color(.textTertiary))
+                                        .fcTypography(.caption)
+                                }
+
+                                Spacer()
+
+                                if selectedID.wrappedValue == screen.displayID {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(theme.color(.accentInfo))
+                                }
                             }
                         }
-                        .padding(10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(selectedID.wrappedValue == screen.displayID ? Color.accentColor.opacity(0.1) : Color.primary.opacity(0.04))
-                        )
                     }
                     .buttonStyle(.plain)
                 }
             }
 
             Button(action: onRefresh) {
-                HStack(spacing: 4) {
+                HStack(spacing: FCSpacingToken.s4.rawValue) {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 10, weight: .semibold))
                     Text("Refresh")
-                        .font(.system(size: 11, weight: .medium))
+                        .fcTypography(.caption)
                 }
-                .foregroundStyle(.secondary)
+                .foregroundStyle(theme.color(.textSecondary))
             }
             .buttonStyle(.plain)
         }
@@ -1220,6 +1267,34 @@ struct SettingsView: View {
     }
 
     // MARK: - Helpers
+
+    private func syncDerivedState() {
+        availableMics = AudioInputDevice.allInputDevices()
+        refreshScreens()
+        refreshOverlayScreens()
+        localIP = BrowserServer.localIPAddress() ?? "localhost"
+        browserPortInput = String(settings.browserServerPort)
+        validateBrowserPortInput(browserPortInput)
+    }
+
+    private func validateBrowserPortInput(_ value: String) {
+        if value.isEmpty {
+            browserPortValidation = "Port is required and must be 1024 or higher."
+            return
+        }
+
+        guard let parsed = UInt16(value) else {
+            browserPortValidation = "Port must be a number between 1024 and 65535."
+            return
+        }
+
+        guard parsed >= 1024 else {
+            browserPortValidation = "Ports below 1024 are reserved by the system."
+            return
+        }
+
+        browserPortValidation = nil
+    }
 
     private func resetAllSettings() {
         settings.speechBackend = .apple
@@ -1248,6 +1323,9 @@ struct SettingsView: View {
         settings.browserServerPort = 7373
         settings.llmResyncEnabled = false
         settings.refinementModel = "gpt-4o"
+
+        browserPortInput = String(settings.browserServerPort)
+        validateBrowserPortInput(browserPortInput)
     }
 
     private func refreshScreens() {
