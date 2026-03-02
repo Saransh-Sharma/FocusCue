@@ -15,27 +15,36 @@ struct ContentView: View {
     @State private var dropError: String?
     @State private var dropAlertTitle = "Import Error"
     @State private var showSettings = false
+    @State private var settingsInitialTab: SettingsTab = .appearance
+    @State private var settingsLaunchedFromOnboarding = false
+    @State private var settingsGuidedTemplateDraft: OnboardingDraft?
     @State private var showAbout = false
     @State private var showDraft = false
     @State private var showOnboarding = false
+    @State private var onboardingInitialStep: OnboardingStep = .welcome
+    @State private var onboardingEntryContext: OnboardingEntryContext = .firstRun
     @State private var revealMainWindow = false
     @State private var showDeletePageConfirmation = false
     @State private var pendingDeletePageID: UUID?
 
-    @AppStorage("focuscue.onboarding.completed") private var onboardingCompleted = false
+    @AppStorage(FocusCueOnboardingStorage.completedKey) private var onboardingCompleted = false
+    @AppStorage(FocusCueOnboardingStorage.versionKey) private var onboardingVersion = 0
+    @AppStorage(FocusCueOnboardingStorage.lastCompletedStepKey) private var onboardingLastCompletedStep = 0
 
     @FocusState private var isTextFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let defaultText = """
-Welcome to FocusCue! This is your personal teleprompter that sits right below your MacBook's notch. [smile]
+Read this out loud to try FocusCue. [smile]
 
-As you read aloud, the text will highlight in real-time, following your voice. The speech recognition matches your words and keeps track of your progress. [pause]
+Welcome to FocusCue — your personal teleprompter that lives just below your MacBook’s notch.
 
-You can pause at any time, go back and re-read sections, and the highlighting will follow along. When you finish reading all the text, the overlay will automatically close with a smooth animation. [nod]
+As you speak, your script highlights in real time while FocusCue follows your voice. Speech recognition matches your words and keeps you in sync. [pause]
 
-Try reading this passage out loud to see how the highlighting works. The waveform at the bottom shows your voice activity, and you'll see the last few words you spoke displayed next to it.
+Need to stop or redo a line? Pause anytime, jump back, and the highlighting will catch up automatically. When you reach the end, the overlay closes smoothly on its own. [nod]
+
+Watch the waveform track your voice, and glance at the last few words you spoke beside it.
 
 Happy presenting! [wave]
 """
@@ -70,6 +79,18 @@ Happy presenting! [wave]
 
     private var archiveSidebarRows: [SidebarPageRowModel] {
         service.sidebarSections.first(where: { $0.kind == .archive })?.pages ?? []
+    }
+
+    private var shouldPresentOnboardingOnLaunch: Bool {
+        !onboardingCompleted || onboardingVersion < FocusCueOnboardingStorage.currentVersion
+    }
+
+    private var resolvedLaunchOnboardingStep: OnboardingStep {
+        if !onboardingCompleted,
+           let savedStep = OnboardingStep(rawValue: onboardingLastCompletedStep) {
+            return savedStep
+        }
+        return .welcome
     }
 
     var body: some View {
@@ -198,31 +219,37 @@ Happy presenting! [wave]
             }
         }
         .sheet(isPresented: $showSettings) {
-            SettingsView(settings: NotchSettings.shared)
+            SettingsView(
+                settings: NotchSettings.shared,
+                initialTab: settingsInitialTab,
+                launchedFromOnboarding: settingsLaunchedFromOnboarding,
+                onReturnToGuidedTemplate: settingsGuidedTemplateDraft != nil ? {
+                    returnToGuidedTemplateFromSettings()
+                } : nil
+            )
         }
         .sheet(isPresented: $showAbout) {
             AboutView()
         }
         .sheet(isPresented: $showOnboarding) {
             OnboardingWizardView(
-                onStartTemplate: {
-                    applyGuidedTemplate()
-                },
-                onOpenSettings: {
-                    showSettings = true
-                },
-                onFinish: {
-                    onboardingCompleted = true
-                }
-            )
+                initialStep: onboardingInitialStep,
+                entryContext: onboardingEntryContext
+            ) { completion in
+                handleOnboardingCompletion(completion)
+            }
+            .frame(width: 640, height: 540)
         }
         .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { _ in
-            showSettings = true
+            presentSettings()
         }
         .onReceive(NotificationCenter.default.publisher(for: .openAbout)) { _ in
             showAbout = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .openOnboarding)) { _ in
+            settingsGuidedTemplateDraft = nil
+            onboardingInitialStep = .welcome
+            onboardingEntryContext = .manual
             showOnboarding = true
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -245,7 +272,9 @@ Happy presenting! [wave]
                 }
             } else {
                 isTextFocused = true
-                if !onboardingCompleted {
+                if shouldPresentOnboardingOnLaunch {
+                    onboardingInitialStep = resolvedLaunchOnboardingStep
+                    onboardingEntryContext = .firstRun
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                         showOnboarding = true
                     }
@@ -482,9 +511,14 @@ Happy presenting! [wave]
                 onSaveAllDirtyPages: { service.saveAllDirtyPages() },
                 onDraft: { showDraft = true },
                 onAddPage: { addPage() },
-                onSettings: { showSettings = true },
-                onOpenOnboarding: { showOnboarding = true },
-                showOnboardingPrompt: !onboardingCompleted
+                onSettings: { presentSettings() },
+                onOpenOnboarding: {
+                    settingsGuidedTemplateDraft = nil
+                    onboardingInitialStep = .welcome
+                    onboardingEntryContext = .manual
+                    showOnboarding = true
+                },
+                showOnboardingPrompt: shouldPresentOnboardingOnLaunch
             )
         }
 
@@ -558,10 +592,68 @@ Happy presenting! [wave]
         isRunning = false
     }
 
+    private func presentSettings(
+        initialTab: SettingsTab = .appearance,
+        launchedFromOnboarding: Bool = false,
+        guidedTemplateDraft: OnboardingDraft? = nil
+    ) {
+        settingsInitialTab = initialTab
+        settingsLaunchedFromOnboarding = launchedFromOnboarding
+        settingsGuidedTemplateDraft = guidedTemplateDraft
+        showSettings = true
+    }
+
+    private func applyOnboardingDraft(_ draft: OnboardingDraft) {
+        NotchSettings.shared.listeningMode = draft.listeningMode
+        NotchSettings.shared.overlayMode = draft.overlayMode
+    }
+
+    private func handleOnboardingCompletion(_ completion: OnboardingCompletion) {
+        if completion.applyDraft {
+            applyOnboardingDraft(completion.draft)
+        }
+
+        if completion.markOnboardingComplete {
+            onboardingCompleted = true
+            onboardingVersion = FocusCueOnboardingStorage.currentVersion
+            onboardingLastCompletedStep = 0
+        } else {
+            onboardingCompleted = false
+            onboardingLastCompletedStep = completion.draft.lastVisitedStep.rawValue
+        }
+
+        if completion.launchGuidedTemplate {
+            settingsGuidedTemplateDraft = nil
+            startGuidedTemplate(from: completion.draft)
+            return
+        }
+
+        if let tab = completion.openedSettingsTab {
+            presentSettings(
+                initialTab: tab,
+                launchedFromOnboarding: true,
+                guidedTemplateDraft: completion.completionReason == .continueInSettings ? completion.draft : nil
+            )
+        }
+    }
+
     private func applyGuidedTemplate() {
         service.replaceWorkspaceWithSinglePage(text: defaultText, markAsSaved: true)
         service.clearReadState()
         isTextFocused = true
+    }
+
+    private func startGuidedTemplate(from draft: OnboardingDraft) {
+        applyOnboardingDraft(draft)
+        applyGuidedTemplate()
+        run()
+    }
+
+    private func returnToGuidedTemplateFromSettings() {
+        guard let draft = settingsGuidedTemplateDraft else { return }
+        settingsGuidedTemplateDraft = nil
+        settingsLaunchedFromOnboarding = false
+        startGuidedTemplate(from: draft)
     }
 }
 
