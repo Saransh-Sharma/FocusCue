@@ -302,6 +302,8 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
 struct SettingsView: View {
     @Bindable var settings: NotchSettings
+    let launchedFromOnboarding: Bool
+    let onReturnToGuidedTemplate: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -309,6 +311,7 @@ struct SettingsView: View {
     @State private var previewController = NotchPreviewController()
     @State private var selectedTab: SettingsTab = .appearance
     @State private var showResetConfirmation = false
+    @State private var showResetAppConfirmation = false
 
     @State private var availableMics: [AudioInputDevice] = []
     @State private var overlayScreens: [NSScreen] = []
@@ -325,6 +328,18 @@ struct SettingsView: View {
 
     private var browserURL: String {
         "http://\(localIP):\(settings.browserServerPort)"
+    }
+
+    init(
+        settings: NotchSettings,
+        initialTab: SettingsTab = .appearance,
+        launchedFromOnboarding: Bool = false,
+        onReturnToGuidedTemplate: (() -> Void)? = nil
+    ) {
+        self.settings = settings
+        self.launchedFromOnboarding = launchedFromOnboarding
+        self.onReturnToGuidedTemplate = onReturnToGuidedTemplate
+        _selectedTab = State(initialValue: initialTab)
     }
 
     var body: some View {
@@ -346,6 +361,14 @@ struct SettingsView: View {
             }
         } message: {
             Text("This will restore all settings to their defaults.")
+        }
+        .alert("Reset FocusCue and Start Setup Again?", isPresented: $showResetAppConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Reset and Reopen Onboarding", role: .destructive) {
+                resetAppAndReopenOnboarding()
+            }
+        } message: {
+            Text("This restores FocusCue settings to their defaults and reopens onboarding. Your saved scripts and files will not be deleted.")
         }
         .onAppear {
             syncDerivedState()
@@ -430,40 +453,93 @@ struct SettingsView: View {
     }
 
     private var tabContent: some View {
-        Group {
-            switch selectedTab {
-            case .appearance:
-                appearanceTab
-            case .guidance:
-                guidanceTab
-            case .teleprompter:
-                teleprompterTab
-            case .external:
-                externalTab
-            case .browser:
-                browserTab
+        VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+            if launchedFromOnboarding {
+                onboardingCallout
+            }
+
+            Group {
+                switch selectedTab {
+                case .appearance:
+                    appearanceTab
+                case .guidance:
+                    guidanceTab
+                case .teleprompter:
+                    teleprompterTab
+                case .external:
+                    externalTab
+                case .browser:
+                    browserTab
+                }
+            }
+        }
+    }
+
+    private var onboardingCallout: some View {
+        VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+            Text("Advanced setup for your FocusCue experience")
+                .foregroundStyle(theme.color(.textPrimary))
+                .fcTypography(.label)
+
+            FCSettingsInlineNotice(
+                kind: .info,
+                text: "You can return to the guided template after adjusting settings."
+            )
+
+            if onReturnToGuidedTemplate != nil {
+                Button {
+                    let action = onReturnToGuidedTemplate
+                    dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        action?()
+                    }
+                } label: {
+                    Label("Start Guided Template", systemImage: "play.fill")
+                        .fcTypography(.caption)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(theme.color(.accentPrimary))
             }
         }
     }
 
     private var footer: some View {
         HStack {
-            Button("Reset All") {
-                showResetConfirmation = true
+            HStack(spacing: FCSpacingToken.s8.rawValue) {
+                Button("Reset All") {
+                    showResetConfirmation = true
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(theme.color(.textSecondary))
+                .fcTypography(.label)
+                .padding(.horizontal, FCSpacingToken.s12.rawValue)
+                .padding(.vertical, FCSpacingToken.s8.rawValue)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(theme.color(.surfaceOverlay).opacity(0.85))
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+                )
+
+                Button("Reset App & Start Setup Again") {
+                    showResetAppConfirmation = true
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(theme.color(.stateError))
+                .fcTypography(.label)
+                .padding(.horizontal, FCSpacingToken.s12.rawValue)
+                .padding(.vertical, FCSpacingToken.s8.rawValue)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(theme.color(.surfaceOverlay).opacity(0.85))
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(theme.color(.stateError).opacity(0.25), lineWidth: FCStrokeToken.thin.rawValue)
+                )
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(theme.color(.textSecondary))
-            .fcTypography(.label)
-            .padding(.horizontal, FCSpacingToken.s12.rawValue)
-            .padding(.vertical, FCSpacingToken.s8.rawValue)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(theme.color(.surfaceOverlay).opacity(0.85))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
-            )
 
             Spacer()
 
@@ -1300,6 +1376,7 @@ struct SettingsView: View {
         settings.speechBackend = .apple
         settings.notchWidth = NotchSettings.defaultWidth
         settings.textAreaHeight = NotchSettings.defaultHeight
+        settings.speechLocale = NotchSettings.defaultLocale
         settings.fontSizePreset = .lg
         settings.fontFamilyPreset = .sans
         settings.fontColorPreset = .white
@@ -1315,6 +1392,7 @@ struct SettingsView: View {
         settings.mirrorAxis = .horizontal
         settings.listeningMode = .wordTracking
         settings.scrollSpeed = 3
+        settings.hideFromScreenShare = true
         settings.showElapsedTime = true
         settings.selectedMicUID = ""
         settings.autoNextPage = false
@@ -1326,6 +1404,28 @@ struct SettingsView: View {
 
         browserPortInput = String(settings.browserServerPort)
         validateBrowserPortInput(browserPortInput)
+    }
+
+    private func resetAppAndReopenOnboarding() {
+        withAnimation(theme.animation(.base)) {
+            resetAllSettings()
+        }
+
+        let defaults = UserDefaults.standard
+        defaults.set(false, forKey: FocusCueOnboardingStorage.completedKey)
+        defaults.set(0, forKey: FocusCueOnboardingStorage.versionKey)
+        defaults.set(0, forKey: FocusCueOnboardingStorage.lastCompletedStepKey)
+
+        dismiss()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            NSApp.activate(ignoringOtherApps: true)
+            for window in NSApp.windows where !(window is NSPanel) {
+                window.makeKeyAndOrderFront(nil)
+                break
+            }
+            NotificationCenter.default.post(name: .openOnboarding, object: nil)
+        }
     }
 
     private func refreshScreens() {
