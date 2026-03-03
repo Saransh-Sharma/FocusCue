@@ -15,7 +15,7 @@ struct ContentView: View {
     @State private var dropError: String?
     @State private var dropAlertTitle = "Import Error"
     @State private var showSettings = false
-    @State private var settingsInitialTab: SettingsTab = .appearance
+    @State private var settingsInitialTab: SettingsTab = .display
     @State private var settingsLaunchedFromOnboarding = false
     @State private var settingsGuidedTemplateDraft: OnboardingDraft?
     @State private var showAbout = false
@@ -49,28 +49,8 @@ Watch the waveform track your voice, and glance at the last few words you spoke 
 Happy presenting! [wave]
 """
 
-    private var languageLabel: String {
-        let locale = NotchSettings.shared.speechLocale
-        return Locale.current.localizedString(forIdentifier: locale) ?? locale
-    }
-
-    private var modeLabel: String {
-        if NotchSettings.shared.listeningMode == .wordTracking {
-            return "Word Tracking (\(languageLabel))"
-        }
-        return NotchSettings.shared.listeningMode.label
-    }
-
-    private var modeDescription: String {
-        NotchSettings.shared.listeningMode.description
-    }
-
     private var currentText: Binding<String> {
         service.textBindingForSelectedPage()
-    }
-
-    private var currentFileName: String? {
-        service.currentFileURL?.deletingPathExtension().lastPathComponent
     }
 
     private var liveSidebarRows: [SidebarPageRowModel] {
@@ -97,53 +77,44 @@ Happy presenting! [wave]
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
 
         GeometryReader { proxy in
-            let compactLayoutWidthThreshold: CGFloat = 1220
-            let compactHeightThreshold: CGFloat = 760
-            let tightCompactHeightThreshold: CGFloat = 700
-            let isCompactLayout = proxy.size.width < compactLayoutWidthThreshold
-            let isCompactHeight = proxy.size.height < compactHeightThreshold
-            let isTightCompactHeight = proxy.size.height < tightCompactHeightThreshold
-            let contentPadding = (isCompactLayout || isCompactHeight)
-                ? FCSpacingToken.s16.rawValue
-                : FCSpacingToken.s24.rawValue
-            let mainStackSpacing = (isCompactLayout || isCompactHeight)
-                ? FCSpacingToken.s12.rawValue
-                : FCSpacingToken.s20.rawValue
-            let columnSpacing = isCompactLayout
-                ? FCSpacingToken.s12.rawValue
-                : FCSpacingToken.s16.rawValue
-            let sidebarWidth: CGFloat = isCompactLayout ? 228 : 248
-            let editorMinHeight: CGFloat = isTightCompactHeight ? 320 : (isCompactHeight ? 360 : 460)
+            let isCompactLayout = proxy.size.width < 960
+            let contentPadding = FCSpacingToken.s16.rawValue
+            let mainStackSpacing = FCSpacingToken.s12.rawValue
+            let columnSpacing = FCSpacingToken.s12.rawValue
+            let sidebarWidth: CGFloat = 220
+            let editorMinHeight: CGFloat = 380
 
             ZStack {
                 FCWindowBackdrop()
 
-                VStack(alignment: .leading, spacing: mainStackSpacing) {
-                    FCWindowHeader(
-                        subtitle: "Stay on script. Stay on camera. Stay natural.",
-                        compact: isCompactLayout
-                    )
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(alignment: .leading, spacing: mainStackSpacing) {
+                        FCWindowHeader(
+                            subtitle: "Stay on script. Stay on camera. Stay natural.",
+                            compact: isCompactLayout
+                        )
 
-                    if isCompactLayout {
-                        VStack(alignment: .leading, spacing: mainStackSpacing) {
-                            HStack(alignment: .top, spacing: columnSpacing) {
+                        if isCompactLayout {
+                            VStack(alignment: .leading, spacing: mainStackSpacing) {
                                 pageRailView(theme: theme, width: sidebarWidth)
                                 editorPanel(theme: theme, minHeight: editorMinHeight)
+                                actionBarView(theme: theme)
                             }
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                        } else {
+                            HStack(alignment: .top, spacing: columnSpacing) {
+                                pageRailView(theme: theme, width: sidebarWidth)
 
-                            rightColumnView(theme: theme, compact: true)
-                        }
-                    } else {
-                        HStack(alignment: .top, spacing: columnSpacing) {
-                            pageRailView(theme: theme, width: sidebarWidth)
-                            editorPanel(theme: theme, minHeight: editorMinHeight)
-                            rightColumnView(theme: theme, compact: false)
+                                VStack(spacing: mainStackSpacing) {
+                                    editorPanel(theme: theme, minHeight: editorMinHeight)
+                                    actionBarView(theme: theme)
+                                }
+                            }
                         }
                     }
+                    .padding(contentPadding)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .frame(minHeight: proxy.size.height, alignment: .top)
                 }
-                .padding(contentPadding)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .opacity(revealMainWindow ? 1 : 0)
                 .offset(y: revealMainWindow ? 0 : (reduceMotion ? 0 : 12))
                 .animation(theme.animation(.emphasized, curve: .enter), value: revealMainWindow)
@@ -153,7 +124,6 @@ Happy presenting! [wave]
                         .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
                 }
 
-                // Invisible drop target covering the whole window.
                 Color.clear
                     .contentShape(Rectangle())
                     .onDrop(of: [.fileURL], isTargeted: $isDroppingPresentation) { providers in
@@ -210,7 +180,7 @@ Happy presenting! [wave]
                 Text("Delete \"\(title)\" permanently? This removes the page from FocusCue. If a draft file exists, it will be moved to Trash.")
             }
         }
-        .frame(minWidth: 920, minHeight: 640)
+        .frame(minWidth: 920, minHeight: 540)
         .sheet(isPresented: $showDraft) {
             DraftSessionView { script in
                 let trimmed = script.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -311,10 +281,11 @@ Happy presenting! [wave]
                 }
             },
             onAddLivePage: { addPage() },
-            onReorderPage: { pageID, module, targetIndex in
-                withAnimation(theme.spring(.soft)) {
-                    service.movePageWithinModule(pageID, module: module, toIndex: targetIndex)
-                }
+            onMovePageUp: { pageID, module in
+                movePageUp(pageID, module: module, theme: theme)
+            },
+            onMovePageDown: { pageID, module in
+                movePageDown(pageID, module: module, theme: theme)
             }
         )
         .frame(width: width)
@@ -457,6 +428,9 @@ Happy presenting! [wave]
 
             if let selectedPageID = service.selectedPageID,
                let selectedModule = service.selectedPageModule {
+                let rows = sidebarRows(for: selectedModule)
+                let selectedIndex = rows.firstIndex(where: { $0.id == selectedPageID })
+
                 if selectedModule == .liveTranscripts {
                     Button {
                         withAnimation(theme.spring(.snappy)) {
@@ -475,6 +449,23 @@ Happy presenting! [wave]
                     }
                 }
 
+                Button {
+                    movePageUp(selectedPageID, module: selectedModule, theme: theme)
+                } label: {
+                    Label("Move Up", systemImage: "arrow.up")
+                }
+                .disabled((selectedIndex ?? 0) <= 0)
+
+                Button {
+                    movePageDown(selectedPageID, module: selectedModule, theme: theme)
+                } label: {
+                    Label("Move Down", systemImage: "arrow.down")
+                }
+                .disabled({
+                    guard let selectedIndex else { return true }
+                    return selectedIndex >= (rows.count - 1)
+                }())
+
                 Button(role: .destructive) {
                     pendingDeletePageID = selectedPageID
                     showDeletePageConfirmation = true
@@ -492,43 +483,28 @@ Happy presenting! [wave]
     }
 
     @ViewBuilder
-    private func rightColumnView(theme: FCTheme, compact: Bool) -> some View {
-        let column = VStack(spacing: FCSpacingToken.s16.rawValue) {
-            FCPlaybackHeroPanel(
-                isRunning: isRunning,
-                startAvailabilityReason: service.startAvailabilityReason,
-                onStart: { run() },
-                onStop: { stop() }
-            )
-
-            FCCommandCenter(
-                fileName: currentFileName,
-                hasUnsavedChanges: service.hasUnsavedChanges,
-                hasDirtyPages: service.hasDirtyDraftPages,
-                modeLabel: modeLabel,
-                modeDescription: modeDescription,
-                onOpenDocument: { service.openFile() },
-                onSaveAllDirtyPages: { service.saveAllDirtyPages() },
-                onDraft: { showDraft = true },
-                onAddPage: { addPage() },
-                onSettings: { presentSettings() },
-                onOpenOnboarding: {
-                    settingsGuidedTemplateDraft = nil
-                    onboardingInitialStep = .welcome
-                    onboardingEntryContext = .manual
-                    showOnboarding = true
-                },
-                showOnboardingPrompt: shouldPresentOnboardingOnLaunch
-            )
-        }
-
-        if compact {
-            column
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-        } else {
-            column
-                .frame(width: 300, alignment: .topLeading)
-        }
+    private func actionBarView(theme: FCTheme) -> some View {
+        FCActionBar(
+            isRunning: isRunning,
+            startAvailabilityReason: service.startAvailabilityReason,
+            settings: NotchSettings.shared,
+            hasDirtyPages: service.hasDirtyDraftPages,
+            showOnboardingPrompt: shouldPresentOnboardingOnLaunch,
+            onStart: { run() },
+            onStop: { stop() },
+            onOpenDocument: { service.openFile() },
+            onSaveAllDirtyPages: { service.saveAllDirtyPages() },
+            onDraft: { showDraft = true },
+            onAddPage: { addPage() },
+            onSettings: { presentSettings() },
+            onOpenOnboarding: {
+                settingsGuidedTemplateDraft = nil
+                onboardingInitialStep = .welcome
+                onboardingEntryContext = .manual
+                showOnboarding = true
+            }
+        )
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     // MARK: - Actions
@@ -545,6 +521,32 @@ Happy presenting! [wave]
             _ = service.savePageDraft(selectedPageID)
         } else {
             service.saveAllDirtyPages()
+        }
+    }
+
+    private func sidebarRows(for module: PageModule) -> [SidebarPageRowModel] {
+        switch module {
+        case .liveTranscripts:
+            return liveSidebarRows
+        case .archive:
+            return archiveSidebarRows
+        }
+    }
+
+    private func movePageUp(_ pageID: UUID, module: PageModule, theme: FCTheme) {
+        let rows = sidebarRows(for: module)
+        guard let pageIndex = rows.firstIndex(where: { $0.id == pageID }), pageIndex > 0 else { return }
+        withAnimation(theme.spring(.soft)) {
+            _ = service.movePageWithinModule(pageID, module: module, toIndex: pageIndex - 1)
+        }
+    }
+
+    private func movePageDown(_ pageID: UUID, module: PageModule, theme: FCTheme) {
+        let rows = sidebarRows(for: module)
+        guard let pageIndex = rows.firstIndex(where: { $0.id == pageID }),
+              pageIndex < rows.count - 1 else { return }
+        withAnimation(theme.spring(.soft)) {
+            _ = service.movePageWithinModule(pageID, module: module, toIndex: pageIndex + 2)
         }
     }
 
@@ -593,7 +595,7 @@ Happy presenting! [wave]
     }
 
     private func presentSettings(
-        initialTab: SettingsTab = .appearance,
+        initialTab: SettingsTab = .display,
         launchedFromOnboarding: Bool = false,
         guidedTemplateDraft: OnboardingDraft? = nil
     ) {
