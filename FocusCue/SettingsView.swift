@@ -263,37 +263,31 @@ struct NotchPreviewContent: View {
 // MARK: - Settings Tabs
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case appearance, guidance, teleprompter, external, browser
+    case display, guidance, connections
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .appearance: return "Appearance"
+        case .display: return "Display"
         case .guidance: return "Guidance"
-        case .teleprompter: return "Teleprompter"
-        case .external: return "External"
-        case .browser: return "Remote"
+        case .connections: return "Connections"
         }
     }
 
     var icon: String {
         switch self {
-        case .appearance: return "paintpalette"
+        case .display: return "paintpalette"
         case .guidance: return "waveform"
-        case .teleprompter: return "macwindow"
-        case .external: return "rectangle.on.rectangle"
-        case .browser: return "antenna.radiowaves.left.and.right"
+        case .connections: return "antenna.radiowaves.left.and.right"
         }
     }
 
     var accent: FCColorToken {
         switch self {
-        case .appearance: return .accentPrimary
+        case .display: return .accentPrimary
         case .guidance: return .accentInfo
-        case .teleprompter: return .accentCTA
-        case .external: return .stateSuccess
-        case .browser: return .accentInfo
+        case .connections: return .stateSuccess
         }
     }
 }
@@ -301,14 +295,20 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 // MARK: - Settings View
 
 struct SettingsView: View {
+    private let settingsWidth: CGFloat = 560
+    private let settingsHeight: CGFloat = 640
+
     @Bindable var settings: NotchSettings
+    let launchedFromOnboarding: Bool
+    let onReturnToGuidedTemplate: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var previewController = NotchPreviewController()
-    @State private var selectedTab: SettingsTab = .appearance
+    @State private var selectedTab: SettingsTab = .display
     @State private var showResetConfirmation = false
+    @State private var showResetAppConfirmation = false
 
     @State private var availableMics: [AudioInputDevice] = []
     @State private var overlayScreens: [NSScreen] = []
@@ -327,6 +327,18 @@ struct SettingsView: View {
         "http://\(localIP):\(settings.browserServerPort)"
     }
 
+    init(
+        settings: NotchSettings,
+        initialTab: SettingsTab = .display,
+        launchedFromOnboarding: Bool = false,
+        onReturnToGuidedTemplate: (() -> Void)? = nil
+    ) {
+        self.settings = settings
+        self.launchedFromOnboarding = launchedFromOnboarding
+        self.onReturnToGuidedTemplate = onReturnToGuidedTemplate
+        _selectedTab = State(initialValue: initialTab)
+    }
+
     var body: some View {
         FCSettingsShell(sidebarWidth: 155) {
             sidebar
@@ -335,8 +347,7 @@ struct SettingsView: View {
         } footer: {
             footer
         }
-        .frame(width: 500)
-        .frame(minHeight: 280, maxHeight: 500)
+        .frame(width: settingsWidth, height: settingsHeight)
         .alert("Reset All Settings?", isPresented: $showResetConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Reset", role: .destructive) {
@@ -346,6 +357,14 @@ struct SettingsView: View {
             }
         } message: {
             Text("This will restore all settings to their defaults.")
+        }
+        .alert("Reset FocusCue and Start Setup Again?", isPresented: $showResetAppConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Reset and Reopen Onboarding", role: .destructive) {
+                resetAppAndReopenOnboarding()
+            }
+        } message: {
+            Text("This restores FocusCue settings to their defaults and reopens onboarding. Your saved scripts and files will not be deleted.")
         }
         .onAppear {
             syncDerivedState()
@@ -404,13 +423,11 @@ struct SettingsView: View {
             if tab == .guidance {
                 availableMics = AudioInputDevice.allInputDevices()
             }
-            if tab == .teleprompter {
+            if tab == .display {
                 refreshOverlayScreens()
             }
-            if tab == .external {
+            if tab == .connections {
                 refreshScreens()
-            }
-            if tab == .browser {
                 localIP = BrowserServer.localIPAddress() ?? "localhost"
             }
         }
@@ -430,40 +447,90 @@ struct SettingsView: View {
     }
 
     private var tabContent: some View {
-        Group {
-            switch selectedTab {
-            case .appearance:
-                appearanceTab
-            case .guidance:
-                guidanceTab
-            case .teleprompter:
-                teleprompterTab
-            case .external:
-                externalTab
-            case .browser:
-                browserTab
+        VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+            if launchedFromOnboarding {
+                onboardingCallout
+            }
+
+            Group {
+                switch selectedTab {
+                case .display:
+                    displayTab
+                case .guidance:
+                    guidanceTab
+                case .connections:
+                    connectionsTab
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var onboardingCallout: some View {
+        VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+            Text("Advanced setup for your FocusCue experience")
+                .foregroundStyle(theme.color(.textPrimary))
+                .fcTypography(.label)
+
+            FCSettingsInlineNotice(
+                kind: .info,
+                text: "You can return to the guided template after adjusting settings."
+            )
+
+            if onReturnToGuidedTemplate != nil {
+                Button {
+                    let action = onReturnToGuidedTemplate
+                    dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        action?()
+                    }
+                } label: {
+                    Label("Start Guided Template", systemImage: "play.fill")
+                        .fcTypography(.caption)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(theme.color(.accentPrimary))
             }
         }
     }
 
     private var footer: some View {
         HStack {
-            Button("Reset All") {
-                showResetConfirmation = true
+            HStack(spacing: FCSpacingToken.s8.rawValue) {
+                Button("Reset All") {
+                    showResetConfirmation = true
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(theme.color(.textSecondary))
+                .fcTypography(.label)
+                .padding(.horizontal, FCSpacingToken.s12.rawValue)
+                .padding(.vertical, FCSpacingToken.s8.rawValue)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(theme.color(.surfaceOverlay).opacity(0.85))
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+                )
+
+                Button("Reset App & Start Setup Again") {
+                    showResetAppConfirmation = true
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(theme.color(.stateError))
+                .fcTypography(.label)
+                .padding(.horizontal, FCSpacingToken.s12.rawValue)
+                .padding(.vertical, FCSpacingToken.s8.rawValue)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(theme.color(.surfaceOverlay).opacity(0.85))
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(theme.color(.stateError).opacity(0.25), lineWidth: FCStrokeToken.thin.rawValue)
+                )
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(theme.color(.textSecondary))
-            .fcTypography(.label)
-            .padding(.horizontal, FCSpacingToken.s12.rawValue)
-            .padding(.vertical, FCSpacingToken.s8.rawValue)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(theme.color(.surfaceOverlay).opacity(0.85))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
-            )
 
             Spacer()
 
@@ -489,10 +556,104 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Appearance Tab
+    // MARK: - Display Tab (Appearance + Teleprompter merged)
 
-    private var appearanceTab: some View {
+    private var displayTab: some View {
         settingsScroll {
+            FCSettingsSectionCard(title: "Overlay Mode") {
+                VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                    Picker("", selection: $settings.overlayMode) {
+                        ForEach(OverlayMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    Text(settings.overlayMode.description)
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .fcTypography(.caption)
+                }
+            }
+
+            if settings.overlayMode == .pinned {
+                FCSettingsSectionCard(title: "Pinned Display") {
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                        Picker("", selection: $settings.notchDisplayMode) {
+                            ForEach(NotchDisplayMode.allCases) { mode in
+                                Text(mode.label).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+
+                        Text(settings.notchDisplayMode.description)
+                            .foregroundStyle(theme.color(.textSecondary))
+                            .fcTypography(.caption)
+
+                        if settings.notchDisplayMode == .fixedDisplay {
+                            displayPicker(
+                                screens: overlayScreens,
+                                selectedID: $settings.pinnedScreenID,
+                                onRefresh: { refreshOverlayScreens() }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if settings.overlayMode == .floating {
+                FCSettingsSectionCard(title: "Floating Window") {
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                        Toggle(isOn: $settings.followCursorWhenUndocked) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Follow Cursor")
+                                    .foregroundStyle(theme.color(.textPrimary))
+                                    .fcTypography(.label)
+                                Text("The window follows your cursor and sticks to its bottom-right.")
+                                    .foregroundStyle(theme.color(.textSecondary))
+                                    .fcTypography(.caption)
+                            }
+                        }
+                        .toggleStyle(.switch)
+
+                        Toggle(isOn: $settings.floatingGlassEffect) {
+                            Text("Glass Effect")
+                                .foregroundStyle(theme.color(.textPrimary))
+                                .fcTypography(.label)
+                        }
+                        .toggleStyle(.switch)
+
+                        if settings.floatingGlassEffect {
+                            sliderControl(
+                                title: "Opacity",
+                                valueLabel: "\(Int(settings.glassOpacity * 100))%"
+                            ) {
+                                Slider(
+                                    value: $settings.glassOpacity,
+                                    in: 0.0...0.6,
+                                    step: 0.05
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            if settings.overlayMode == .fullscreen {
+                FCSettingsSectionCard(title: "Fullscreen Display") {
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                        displayPicker(
+                            screens: overlayScreens,
+                            selectedID: $settings.fullscreenScreenID,
+                            onRefresh: { refreshOverlayScreens() }
+                        )
+
+                        FCSettingsInlineNotice(kind: .info, text: "Press Esc to stop the teleprompter.")
+                    }
+                }
+            }
+
             FCSettingsSectionCard(title: "Font", subtitle: "Choose the teleprompter type style.") {
                 HStack(spacing: FCSpacingToken.s8.rawValue) {
                     ForEach(FontFamilyPreset.allCases) { preset in
@@ -606,6 +767,64 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            FCSettingsSectionCard(title: "Playback Options") {
+                VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                    Toggle(isOn: $settings.showElapsedTime) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Elapsed Time")
+                                .foregroundStyle(theme.color(.textPrimary))
+                                .fcTypography(.label)
+                            Text("Display a running timer while the teleprompter is active.")
+                                .foregroundStyle(theme.color(.textSecondary))
+                                .fcTypography(.caption)
+                        }
+                    }
+                    .toggleStyle(.checkbox)
+
+                    Toggle(isOn: $settings.hideFromScreenShare) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Hide from Screen Sharing")
+                                .foregroundStyle(theme.color(.textPrimary))
+                                .fcTypography(.label)
+                            Text("Hide the overlay from screen recordings and video calls.")
+                                .foregroundStyle(theme.color(.textSecondary))
+                                .fcTypography(.caption)
+                        }
+                    }
+                    .toggleStyle(.checkbox)
+
+                    Toggle(isOn: $settings.autoNextPage) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Auto Next Page")
+                                .foregroundStyle(theme.color(.textPrimary))
+                                .fcTypography(.label)
+                            Text("Automatically advance to the next page after a countdown.")
+                                .foregroundStyle(theme.color(.textSecondary))
+                                .fcTypography(.caption)
+                        }
+                    }
+                    .toggleStyle(.checkbox)
+
+                    if settings.autoNextPage {
+                        HStack(spacing: FCSpacingToken.s8.rawValue) {
+                            Text("Countdown")
+                                .foregroundStyle(theme.color(.textSecondary))
+                                .fcTypography(.caption)
+                            Spacer()
+                            Picker("", selection: $settings.autoNextPageDelay) {
+                                Text("3 seconds").tag(3)
+                                Text("5 seconds").tag(5)
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(width: 180)
+                        }
+                    }
+                }
+            }
+        }
+        .onAppear {
+            refreshOverlayScreens()
         }
     }
 
@@ -613,6 +832,37 @@ struct SettingsView: View {
 
     private var guidanceTab: some View {
         settingsScroll {
+            FCSettingsSectionCard(title: "Listening Mode") {
+                VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                    Picker("", selection: $settings.listeningMode) {
+                        ForEach(ListeningMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    Text(settings.listeningMode.description)
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .fcTypography(.caption)
+
+                    if settings.listeningMode == .wordTracking {
+                        VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
+                            Text("Speech Language")
+                                .foregroundStyle(theme.color(.textSecondary))
+                                .fcTypography(.caption)
+                            Picker("", selection: $settings.speechLocale) {
+                                ForEach(SFSpeechRecognizer.supportedLocales().sorted(by: { $0.identifier < $1.identifier }), id: \.identifier) { locale in
+                                    Text(Locale.current.localizedString(forIdentifier: locale.identifier) ?? locale.identifier)
+                                        .tag(locale.identifier)
+                                }
+                            }
+                            .labelsHidden()
+                        }
+                    }
+                }
+            }
+
             FCSettingsSectionCard(title: "Speech Backend") {
                 VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
                     Picker("", selection: $settings.speechBackend) {
@@ -687,76 +937,45 @@ struct SettingsView: View {
                 }
             }
 
-            FCSettingsSectionCard(title: "Listening Mode") {
-                VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
-                    Picker("", selection: $settings.listeningMode) {
-                        ForEach(ListeningMode.allCases) { mode in
-                            Text(mode.label).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-
-                    Text(settings.listeningMode.description)
-                        .foregroundStyle(theme.color(.textSecondary))
-                        .fcTypography(.caption)
-
-                    if settings.listeningMode == .wordTracking {
-                        VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
-                            Text("Speech Language")
+            FCSettingsSectionCard(title: "Input & Speed") {
+                VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                    if settings.listeningMode != .classic {
+                        VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                            Text("Microphone")
                                 .foregroundStyle(theme.color(.textSecondary))
                                 .fcTypography(.caption)
-                            Picker("", selection: $settings.speechLocale) {
-                                ForEach(SFSpeechRecognizer.supportedLocales().sorted(by: { $0.identifier < $1.identifier }), id: \.identifier) { locale in
-                                    Text(Locale.current.localizedString(forIdentifier: locale.identifier) ?? locale.identifier)
-                                        .tag(locale.identifier)
+                            Picker("", selection: $settings.selectedMicUID) {
+                                Text("System Default").tag("")
+                                ForEach(availableMics) { mic in
+                                    Text(mic.name).tag(mic.uid)
                                 }
                             }
                             .labelsHidden()
                         }
                     }
-                }
-            }
 
-            if settings.listeningMode != .classic {
-                FCSettingsSectionCard(title: "Input Device") {
-                    VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
-                        Text("Microphone")
-                            .foregroundStyle(theme.color(.textSecondary))
-                            .fcTypography(.caption)
-                        Picker("", selection: $settings.selectedMicUID) {
-                            Text("System Default").tag("")
-                            ForEach(availableMics) { mic in
-                                Text(mic.name).tag(mic.uid)
+                    if settings.listeningMode != .wordTracking {
+                        VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                            sliderControl(
+                                title: "Scroll Speed",
+                                valueLabel: String(format: "%.1f words/s", settings.scrollSpeed)
+                            ) {
+                                Slider(
+                                    value: $settings.scrollSpeed,
+                                    in: 0.5...8,
+                                    step: 0.5
+                                )
                             }
-                        }
-                        .labelsHidden()
-                    }
-                }
-            }
 
-            if settings.listeningMode != .wordTracking {
-                FCSettingsSectionCard(title: "Scroll") {
-                    VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
-                        sliderControl(
-                            title: "Scroll Speed",
-                            valueLabel: String(format: "%.1f words/s", settings.scrollSpeed)
-                        ) {
-                            Slider(
-                                value: $settings.scrollSpeed,
-                                in: 0.5...8,
-                                step: 0.5
-                            )
-                        }
-
-                        HStack {
-                            Text("Slower")
-                                .foregroundStyle(theme.color(.textTertiary))
-                                .fcTypography(.caption)
-                            Spacer()
-                            Text("Faster")
-                                .foregroundStyle(theme.color(.textTertiary))
-                                .fcTypography(.caption)
+                            HStack {
+                                Text("Slower")
+                                    .foregroundStyle(theme.color(.textTertiary))
+                                    .fcTypography(.caption)
+                                Spacer()
+                                Text("Faster")
+                                    .foregroundStyle(theme.color(.textTertiary))
+                                    .fcTypography(.caption)
+                            }
                         }
                     }
                 }
@@ -767,171 +986,9 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Teleprompter Tab
+    // MARK: - Connections Tab (External + Remote merged)
 
-    private var teleprompterTab: some View {
-        settingsScroll {
-            FCSettingsSectionCard(title: "Overlay Mode") {
-                VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
-                    Picker("", selection: $settings.overlayMode) {
-                        ForEach(OverlayMode.allCases) { mode in
-                            Text(mode.label).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-
-                    Text(settings.overlayMode.description)
-                        .foregroundStyle(theme.color(.textSecondary))
-                        .fcTypography(.caption)
-                }
-            }
-
-            if settings.overlayMode == .pinned {
-                FCSettingsSectionCard(title: "Pinned Display") {
-                    VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
-                        Picker("", selection: $settings.notchDisplayMode) {
-                            ForEach(NotchDisplayMode.allCases) { mode in
-                                Text(mode.label).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-
-                        Text(settings.notchDisplayMode.description)
-                            .foregroundStyle(theme.color(.textSecondary))
-                            .fcTypography(.caption)
-
-                        if settings.notchDisplayMode == .fixedDisplay {
-                            displayPicker(
-                                screens: overlayScreens,
-                                selectedID: $settings.pinnedScreenID,
-                                onRefresh: { refreshOverlayScreens() }
-                            )
-                        }
-                    }
-                }
-            }
-
-            if settings.overlayMode == .floating {
-                FCSettingsSectionCard(title: "Floating Window") {
-                    VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
-                        Toggle(isOn: $settings.followCursorWhenUndocked) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Follow Cursor")
-                                    .foregroundStyle(theme.color(.textPrimary))
-                                    .fcTypography(.label)
-                                Text("The window follows your cursor and sticks to its bottom-right.")
-                                    .foregroundStyle(theme.color(.textSecondary))
-                                    .fcTypography(.caption)
-                            }
-                        }
-                        .toggleStyle(.switch)
-
-                        Toggle(isOn: $settings.floatingGlassEffect) {
-                            Text("Glass Effect")
-                                .foregroundStyle(theme.color(.textPrimary))
-                                .fcTypography(.label)
-                        }
-                        .toggleStyle(.switch)
-
-                        if settings.floatingGlassEffect {
-                            sliderControl(
-                                title: "Opacity",
-                                valueLabel: "\(Int(settings.glassOpacity * 100))%"
-                            ) {
-                                Slider(
-                                    value: $settings.glassOpacity,
-                                    in: 0.0...0.6,
-                                    step: 0.05
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            if settings.overlayMode == .fullscreen {
-                FCSettingsSectionCard(title: "Fullscreen Display") {
-                    VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
-                        displayPicker(
-                            screens: overlayScreens,
-                            selectedID: $settings.fullscreenScreenID,
-                            onRefresh: { refreshOverlayScreens() }
-                        )
-
-                        FCSettingsInlineNotice(kind: .info, text: "Press Esc to stop the teleprompter.")
-                    }
-                }
-            }
-
-            FCSettingsSectionCard(title: "Visibility") {
-                VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
-                    Toggle(isOn: $settings.showElapsedTime) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Elapsed Time")
-                                .foregroundStyle(theme.color(.textPrimary))
-                                .fcTypography(.label)
-                            Text("Display a running timer while the teleprompter is active.")
-                                .foregroundStyle(theme.color(.textSecondary))
-                                .fcTypography(.caption)
-                        }
-                    }
-                    .toggleStyle(.checkbox)
-
-                    Toggle(isOn: $settings.hideFromScreenShare) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Hide from Screen Sharing")
-                                .foregroundStyle(theme.color(.textPrimary))
-                                .fcTypography(.label)
-                            Text("Hide the overlay from screen recordings and video calls.")
-                                .foregroundStyle(theme.color(.textSecondary))
-                                .fcTypography(.caption)
-                        }
-                    }
-                    .toggleStyle(.checkbox)
-                }
-            }
-
-            FCSettingsSectionCard(title: "Pagination") {
-                VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
-                    Toggle(isOn: $settings.autoNextPage) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Auto Next Page")
-                                .foregroundStyle(theme.color(.textPrimary))
-                                .fcTypography(.label)
-                            Text("Automatically advance to the next page after a countdown.")
-                                .foregroundStyle(theme.color(.textSecondary))
-                                .fcTypography(.caption)
-                        }
-                    }
-                    .toggleStyle(.checkbox)
-
-                    if settings.autoNextPage {
-                        HStack(spacing: FCSpacingToken.s8.rawValue) {
-                            Text("Countdown")
-                                .foregroundStyle(theme.color(.textSecondary))
-                                .fcTypography(.caption)
-                            Spacer()
-                            Picker("", selection: $settings.autoNextPageDelay) {
-                                Text("3 seconds").tag(3)
-                                Text("5 seconds").tag(5)
-                            }
-                            .pickerStyle(.segmented)
-                            .frame(width: 180)
-                        }
-                    }
-                }
-            }
-        }
-        .onAppear {
-            refreshOverlayScreens()
-        }
-    }
-
-    // MARK: - External Tab
-
-    private var externalTab: some View {
+    private var connectionsTab: some View {
         settingsScroll {
             FCSettingsSectionCard(title: "External Output", subtitle: "Show the teleprompter on an external display or Sidecar iPad.") {
                 VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
@@ -977,17 +1034,8 @@ struct SettingsView: View {
                     )
                 }
             }
-        }
-        .onAppear {
-            refreshScreens()
-        }
-    }
 
-    // MARK: - Remote Tab
-
-    private var browserTab: some View {
-        settingsScroll {
-            FCSettingsSectionCard(title: "Connection", subtitle: "Use your phone or TV browser on the same Wi-Fi network.") {
+            FCSettingsSectionCard(title: "Remote Connection", subtitle: "Use your phone or TV browser on the same Wi-Fi network.") {
                 Toggle(isOn: $settings.browserServerEnabled) {
                     Text("Enable Remote Connection")
                         .foregroundStyle(theme.color(.textPrimary))
@@ -1114,6 +1162,7 @@ struct SettingsView: View {
             }
         }
         .onAppear {
+            refreshScreens()
             localIP = BrowserServer.localIPAddress() ?? "localhost"
         }
     }
@@ -1300,6 +1349,7 @@ struct SettingsView: View {
         settings.speechBackend = .apple
         settings.notchWidth = NotchSettings.defaultWidth
         settings.textAreaHeight = NotchSettings.defaultHeight
+        settings.speechLocale = NotchSettings.defaultLocale
         settings.fontSizePreset = .lg
         settings.fontFamilyPreset = .sans
         settings.fontColorPreset = .white
@@ -1315,6 +1365,7 @@ struct SettingsView: View {
         settings.mirrorAxis = .horizontal
         settings.listeningMode = .wordTracking
         settings.scrollSpeed = 3
+        settings.hideFromScreenShare = true
         settings.showElapsedTime = true
         settings.selectedMicUID = ""
         settings.autoNextPage = false
@@ -1326,6 +1377,28 @@ struct SettingsView: View {
 
         browserPortInput = String(settings.browserServerPort)
         validateBrowserPortInput(browserPortInput)
+    }
+
+    private func resetAppAndReopenOnboarding() {
+        withAnimation(theme.animation(.base)) {
+            resetAllSettings()
+        }
+
+        let defaults = UserDefaults.standard
+        defaults.set(false, forKey: FocusCueOnboardingStorage.completedKey)
+        defaults.set(0, forKey: FocusCueOnboardingStorage.versionKey)
+        defaults.set(0, forKey: FocusCueOnboardingStorage.lastCompletedStepKey)
+
+        dismiss()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            NSApp.activate(ignoringOtherApps: true)
+            for window in NSApp.windows where !(window is NSPanel) {
+                window.makeKeyAndOrderFront(nil)
+                break
+            }
+            NotificationCenter.default.post(name: .openOnboarding, object: nil)
+        }
     }
 
     private func refreshScreens() {

@@ -57,39 +57,49 @@ final class PermissionCenter: ObservableObject {
         speechStatus = Self.mapSpeechStatus(SFSpeechRecognizer.authorizationStatus())
     }
 
-    func requestMicrophoneAccess() {
+    func requestMicrophoneAccess(completion: ((FCPermissionStatus) -> Void)? = nil) {
         let current = AVCaptureDevice.authorizationStatus(for: .audio)
         switch current {
         case .authorized:
             refresh()
+            completion?(microphoneStatus)
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .audio) { [weak self] _ in
                 DispatchQueue.main.async {
                     self?.refresh()
+                    completion?(self?.microphoneStatus ?? .notDetermined)
                 }
             }
         case .denied, .restricted:
             openMicrophoneSettings()
+            refresh()
+            completion?(microphoneStatus)
         @unknown default:
             refresh()
+            completion?(microphoneStatus)
         }
     }
 
-    func requestSpeechAccess() {
+    func requestSpeechAccess(completion: ((FCPermissionStatus) -> Void)? = nil) {
         let current = SFSpeechRecognizer.authorizationStatus()
         switch current {
         case .authorized:
             refresh()
+            completion?(speechStatus)
         case .notDetermined:
             SFSpeechRecognizer.requestAuthorization { [weak self] _ in
                 DispatchQueue.main.async {
                     self?.refresh()
+                    completion?(self?.speechStatus ?? .notDetermined)
                 }
             }
         case .denied, .restricted:
             openSpeechSettings()
+            refresh()
+            completion?(speechStatus)
         @unknown default:
             refresh()
+            completion?(speechStatus)
         }
     }
 

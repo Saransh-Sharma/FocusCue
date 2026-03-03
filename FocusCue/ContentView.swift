@@ -15,53 +15,42 @@ struct ContentView: View {
     @State private var dropError: String?
     @State private var dropAlertTitle = "Import Error"
     @State private var showSettings = false
+    @State private var settingsInitialTab: SettingsTab = .display
+    @State private var settingsLaunchedFromOnboarding = false
+    @State private var settingsGuidedTemplateDraft: OnboardingDraft?
     @State private var showAbout = false
     @State private var showDraft = false
     @State private var showOnboarding = false
+    @State private var onboardingInitialStep: OnboardingStep = .welcome
+    @State private var onboardingEntryContext: OnboardingEntryContext = .firstRun
     @State private var revealMainWindow = false
     @State private var showDeletePageConfirmation = false
     @State private var pendingDeletePageID: UUID?
 
-    @AppStorage("focuscue.onboarding.completed") private var onboardingCompleted = false
+    @AppStorage(FocusCueOnboardingStorage.completedKey) private var onboardingCompleted = false
+    @AppStorage(FocusCueOnboardingStorage.versionKey) private var onboardingVersion = 0
+    @AppStorage(FocusCueOnboardingStorage.lastCompletedStepKey) private var onboardingLastCompletedStep = 0
 
     @FocusState private var isTextFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let defaultText = """
-Welcome to FocusCue! This is your personal teleprompter that sits right below your MacBook's notch. [smile]
+Read this out loud to try FocusCue. [smile]
 
-As you read aloud, the text will highlight in real-time, following your voice. The speech recognition matches your words and keeps track of your progress. [pause]
+Welcome to FocusCue — your personal teleprompter that lives just below your MacBook’s notch.
 
-You can pause at any time, go back and re-read sections, and the highlighting will follow along. When you finish reading all the text, the overlay will automatically close with a smooth animation. [nod]
+As you speak, your script highlights in real time while FocusCue follows your voice. Speech recognition matches your words and keeps you in sync. [pause]
 
-Try reading this passage out loud to see how the highlighting works. The waveform at the bottom shows your voice activity, and you'll see the last few words you spoke displayed next to it.
+Need to stop or redo a line? Pause anytime, jump back, and the highlighting will catch up automatically. When you reach the end, the overlay closes smoothly on its own. [nod]
+
+Watch the waveform track your voice, and glance at the last few words you spoke beside it.
 
 Happy presenting! [wave]
 """
 
-    private var languageLabel: String {
-        let locale = NotchSettings.shared.speechLocale
-        return Locale.current.localizedString(forIdentifier: locale) ?? locale
-    }
-
-    private var modeLabel: String {
-        if NotchSettings.shared.listeningMode == .wordTracking {
-            return "Word Tracking (\(languageLabel))"
-        }
-        return NotchSettings.shared.listeningMode.label
-    }
-
-    private var modeDescription: String {
-        NotchSettings.shared.listeningMode.description
-    }
-
     private var currentText: Binding<String> {
         service.textBindingForSelectedPage()
-    }
-
-    private var currentFileName: String? {
-        service.currentFileURL?.deletingPathExtension().lastPathComponent
     }
 
     private var liveSidebarRows: [SidebarPageRowModel] {
@@ -72,27 +61,28 @@ Happy presenting! [wave]
         service.sidebarSections.first(where: { $0.kind == .archive })?.pages ?? []
     }
 
+    private var shouldPresentOnboardingOnLaunch: Bool {
+        !onboardingCompleted || onboardingVersion < FocusCueOnboardingStorage.currentVersion
+    }
+
+    private var resolvedLaunchOnboardingStep: OnboardingStep {
+        if !onboardingCompleted,
+           let savedStep = OnboardingStep(rawValue: onboardingLastCompletedStep) {
+            return savedStep
+        }
+        return .welcome
+    }
+
     var body: some View {
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
 
         GeometryReader { proxy in
-            let compactLayoutWidthThreshold: CGFloat = 1220
-            let compactHeightThreshold: CGFloat = 760
-            let tightCompactHeightThreshold: CGFloat = 700
-            let isCompactLayout = proxy.size.width < compactLayoutWidthThreshold
-            let isCompactHeight = proxy.size.height < compactHeightThreshold
-            let isTightCompactHeight = proxy.size.height < tightCompactHeightThreshold
-            let contentPadding = (isCompactLayout || isCompactHeight)
-                ? FCSpacingToken.s16.rawValue
-                : FCSpacingToken.s24.rawValue
-            let mainStackSpacing = (isCompactLayout || isCompactHeight)
-                ? FCSpacingToken.s12.rawValue
-                : FCSpacingToken.s20.rawValue
-            let columnSpacing = isCompactLayout
-                ? FCSpacingToken.s12.rawValue
-                : FCSpacingToken.s16.rawValue
-            let sidebarWidth: CGFloat = isCompactLayout ? 228 : 248
-            let editorMinHeight: CGFloat = isTightCompactHeight ? 320 : (isCompactHeight ? 360 : 460)
+            let isCompactLayout = proxy.size.width < 920
+            let contentPadding = FCSpacingToken.s16.rawValue
+            let mainStackSpacing = FCSpacingToken.s12.rawValue
+            let columnSpacing = FCSpacingToken.s12.rawValue
+            let sidebarWidth: CGFloat = 220
+            let editorMinHeight: CGFloat = 220
 
             ZStack {
                 FCWindowBackdrop()
@@ -105,20 +95,22 @@ Happy presenting! [wave]
 
                     if isCompactLayout {
                         VStack(alignment: .leading, spacing: mainStackSpacing) {
-                            HStack(alignment: .top, spacing: columnSpacing) {
-                                pageRailView(theme: theme, width: sidebarWidth)
-                                editorPanel(theme: theme, minHeight: editorMinHeight)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
-
-                            rightColumnView(theme: theme, compact: true)
+                            pageRailView(theme: theme, width: sidebarWidth)
+                            editorPanel(theme: theme, minHeight: editorMinHeight)
+                            actionBarView(theme: theme)
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     } else {
                         HStack(alignment: .top, spacing: columnSpacing) {
                             pageRailView(theme: theme, width: sidebarWidth)
-                            editorPanel(theme: theme, minHeight: editorMinHeight)
-                            rightColumnView(theme: theme, compact: false)
+
+                            VStack(spacing: mainStackSpacing) {
+                                editorPanel(theme: theme, minHeight: editorMinHeight)
+                                actionBarView(theme: theme)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
                 }
                 .padding(contentPadding)
@@ -132,7 +124,6 @@ Happy presenting! [wave]
                         .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
                 }
 
-                // Invisible drop target covering the whole window.
                 Color.clear
                     .contentShape(Rectangle())
                     .onDrop(of: [.fileURL], isTargeted: $isDroppingPresentation) { providers in
@@ -189,7 +180,7 @@ Happy presenting! [wave]
                 Text("Delete \"\(title)\" permanently? This removes the page from FocusCue. If a draft file exists, it will be moved to Trash.")
             }
         }
-        .frame(minWidth: 920, minHeight: 640)
+        .frame(minWidth: 920, minHeight: 540)
         .sheet(isPresented: $showDraft) {
             DraftSessionView { script in
                 let trimmed = script.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -198,31 +189,37 @@ Happy presenting! [wave]
             }
         }
         .sheet(isPresented: $showSettings) {
-            SettingsView(settings: NotchSettings.shared)
+            SettingsView(
+                settings: NotchSettings.shared,
+                initialTab: settingsInitialTab,
+                launchedFromOnboarding: settingsLaunchedFromOnboarding,
+                onReturnToGuidedTemplate: settingsGuidedTemplateDraft != nil ? {
+                    returnToGuidedTemplateFromSettings()
+                } : nil
+            )
         }
         .sheet(isPresented: $showAbout) {
             AboutView()
         }
         .sheet(isPresented: $showOnboarding) {
             OnboardingWizardView(
-                onStartTemplate: {
-                    applyGuidedTemplate()
-                },
-                onOpenSettings: {
-                    showSettings = true
-                },
-                onFinish: {
-                    onboardingCompleted = true
-                }
-            )
+                initialStep: onboardingInitialStep,
+                entryContext: onboardingEntryContext
+            ) { completion in
+                handleOnboardingCompletion(completion)
+            }
+            .frame(width: 640, height: 540)
         }
         .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { _ in
-            showSettings = true
+            presentSettings()
         }
         .onReceive(NotificationCenter.default.publisher(for: .openAbout)) { _ in
             showAbout = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .openOnboarding)) { _ in
+            settingsGuidedTemplateDraft = nil
+            onboardingInitialStep = .welcome
+            onboardingEntryContext = .manual
             showOnboarding = true
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -245,7 +242,9 @@ Happy presenting! [wave]
                 }
             } else {
                 isTextFocused = true
-                if !onboardingCompleted {
+                if shouldPresentOnboardingOnLaunch {
+                    onboardingInitialStep = resolvedLaunchOnboardingStep
+                    onboardingEntryContext = .firstRun
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                         showOnboarding = true
                     }
@@ -282,10 +281,11 @@ Happy presenting! [wave]
                 }
             },
             onAddLivePage: { addPage() },
-            onReorderPage: { pageID, module, targetIndex in
-                withAnimation(theme.spring(.soft)) {
-                    service.movePageWithinModule(pageID, module: module, toIndex: targetIndex)
-                }
+            onMovePageUp: { pageID, module in
+                movePageUp(pageID, module: module, theme: theme)
+            },
+            onMovePageDown: { pageID, module in
+                movePageDown(pageID, module: module, theme: theme)
             }
         )
         .frame(width: width)
@@ -325,9 +325,11 @@ Happy presenting! [wave]
                             )
                     )
                     .focused($isTextFocused)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .frame(maxWidth: .infinity, minHeight: minHeight)
+        .frame(maxWidth: .infinity, minHeight: minHeight, maxHeight: .infinity)
     }
 
     @ViewBuilder
@@ -428,6 +430,9 @@ Happy presenting! [wave]
 
             if let selectedPageID = service.selectedPageID,
                let selectedModule = service.selectedPageModule {
+                let rows = sidebarRows(for: selectedModule)
+                let selectedIndex = rows.firstIndex(where: { $0.id == selectedPageID })
+
                 if selectedModule == .liveTranscripts {
                     Button {
                         withAnimation(theme.spring(.snappy)) {
@@ -446,6 +451,23 @@ Happy presenting! [wave]
                     }
                 }
 
+                Button {
+                    movePageUp(selectedPageID, module: selectedModule, theme: theme)
+                } label: {
+                    Label("Move Up", systemImage: "arrow.up")
+                }
+                .disabled((selectedIndex ?? 0) <= 0)
+
+                Button {
+                    movePageDown(selectedPageID, module: selectedModule, theme: theme)
+                } label: {
+                    Label("Move Down", systemImage: "arrow.down")
+                }
+                .disabled({
+                    guard let selectedIndex else { return true }
+                    return selectedIndex >= (rows.count - 1)
+                }())
+
                 Button(role: .destructive) {
                     pendingDeletePageID = selectedPageID
                     showDeletePageConfirmation = true
@@ -463,38 +485,28 @@ Happy presenting! [wave]
     }
 
     @ViewBuilder
-    private func rightColumnView(theme: FCTheme, compact: Bool) -> some View {
-        let column = VStack(spacing: FCSpacingToken.s16.rawValue) {
-            FCPlaybackHeroPanel(
-                isRunning: isRunning,
-                startAvailabilityReason: service.startAvailabilityReason,
-                onStart: { run() },
-                onStop: { stop() }
-            )
-
-            FCCommandCenter(
-                fileName: currentFileName,
-                hasUnsavedChanges: service.hasUnsavedChanges,
-                hasDirtyPages: service.hasDirtyDraftPages,
-                modeLabel: modeLabel,
-                modeDescription: modeDescription,
-                onOpenDocument: { service.openFile() },
-                onSaveAllDirtyPages: { service.saveAllDirtyPages() },
-                onDraft: { showDraft = true },
-                onAddPage: { addPage() },
-                onSettings: { showSettings = true },
-                onOpenOnboarding: { showOnboarding = true },
-                showOnboardingPrompt: !onboardingCompleted
-            )
-        }
-
-        if compact {
-            column
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-        } else {
-            column
-                .frame(width: 300, alignment: .topLeading)
-        }
+    private func actionBarView(theme: FCTheme) -> some View {
+        FCActionBar(
+            isRunning: isRunning,
+            startAvailabilityReason: service.startAvailabilityReason,
+            settings: NotchSettings.shared,
+            hasDirtyPages: service.hasDirtyDraftPages,
+            showOnboardingPrompt: shouldPresentOnboardingOnLaunch,
+            onStart: { run() },
+            onStop: { stop() },
+            onOpenDocument: { service.openFile() },
+            onSaveAllDirtyPages: { service.saveAllDirtyPages() },
+            onDraft: { showDraft = true },
+            onAddPage: { addPage() },
+            onSettings: { presentSettings() },
+            onOpenOnboarding: {
+                settingsGuidedTemplateDraft = nil
+                onboardingInitialStep = .welcome
+                onboardingEntryContext = .manual
+                showOnboarding = true
+            }
+        )
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     // MARK: - Actions
@@ -511,6 +523,32 @@ Happy presenting! [wave]
             _ = service.savePageDraft(selectedPageID)
         } else {
             service.saveAllDirtyPages()
+        }
+    }
+
+    private func sidebarRows(for module: PageModule) -> [SidebarPageRowModel] {
+        switch module {
+        case .liveTranscripts:
+            return liveSidebarRows
+        case .archive:
+            return archiveSidebarRows
+        }
+    }
+
+    private func movePageUp(_ pageID: UUID, module: PageModule, theme: FCTheme) {
+        let rows = sidebarRows(for: module)
+        guard let pageIndex = rows.firstIndex(where: { $0.id == pageID }), pageIndex > 0 else { return }
+        withAnimation(theme.spring(.soft)) {
+            _ = service.movePageWithinModule(pageID, module: module, toIndex: pageIndex - 1)
+        }
+    }
+
+    private func movePageDown(_ pageID: UUID, module: PageModule, theme: FCTheme) {
+        let rows = sidebarRows(for: module)
+        guard let pageIndex = rows.firstIndex(where: { $0.id == pageID }),
+              pageIndex < rows.count - 1 else { return }
+        withAnimation(theme.spring(.soft)) {
+            _ = service.movePageWithinModule(pageID, module: module, toIndex: pageIndex + 2)
         }
     }
 
@@ -558,10 +596,68 @@ Happy presenting! [wave]
         isRunning = false
     }
 
+    private func presentSettings(
+        initialTab: SettingsTab = .display,
+        launchedFromOnboarding: Bool = false,
+        guidedTemplateDraft: OnboardingDraft? = nil
+    ) {
+        settingsInitialTab = initialTab
+        settingsLaunchedFromOnboarding = launchedFromOnboarding
+        settingsGuidedTemplateDraft = guidedTemplateDraft
+        showSettings = true
+    }
+
+    private func applyOnboardingDraft(_ draft: OnboardingDraft) {
+        NotchSettings.shared.listeningMode = draft.listeningMode
+        NotchSettings.shared.overlayMode = draft.overlayMode
+    }
+
+    private func handleOnboardingCompletion(_ completion: OnboardingCompletion) {
+        if completion.applyDraft {
+            applyOnboardingDraft(completion.draft)
+        }
+
+        if completion.markOnboardingComplete {
+            onboardingCompleted = true
+            onboardingVersion = FocusCueOnboardingStorage.currentVersion
+            onboardingLastCompletedStep = 0
+        } else {
+            onboardingCompleted = false
+            onboardingLastCompletedStep = completion.draft.lastVisitedStep.rawValue
+        }
+
+        if completion.launchGuidedTemplate {
+            settingsGuidedTemplateDraft = nil
+            startGuidedTemplate(from: completion.draft)
+            return
+        }
+
+        if let tab = completion.openedSettingsTab {
+            presentSettings(
+                initialTab: tab,
+                launchedFromOnboarding: true,
+                guidedTemplateDraft: completion.completionReason == .continueInSettings ? completion.draft : nil
+            )
+        }
+    }
+
     private func applyGuidedTemplate() {
         service.replaceWorkspaceWithSinglePage(text: defaultText, markAsSaved: true)
         service.clearReadState()
         isTextFocused = true
+    }
+
+    private func startGuidedTemplate(from draft: OnboardingDraft) {
+        applyOnboardingDraft(draft)
+        applyGuidedTemplate()
+        run()
+    }
+
+    private func returnToGuidedTemplateFromSettings() {
+        guard let draft = settingsGuidedTemplateDraft else { return }
+        settingsGuidedTemplateDraft = nil
+        settingsLaunchedFromOnboarding = false
+        startGuidedTemplate(from: draft)
     }
 }
 

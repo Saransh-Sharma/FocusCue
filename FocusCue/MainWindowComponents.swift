@@ -140,7 +140,8 @@ struct FCPageRail: View {
     let onSavePage: (UUID) -> Void
     let onDeletePage: (UUID) -> Void
     let onAddLivePage: () -> Void
-    let onReorderPage: (UUID, PageModule, Int) -> Bool
+    let onMovePageUp: (UUID, PageModule) -> Void
+    let onMovePageDown: (UUID, PageModule) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -149,7 +150,6 @@ struct FCPageRail: View {
 
     var body: some View {
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
-        let railActionDockHeight: CGFloat = 82
 
         FCGlassPanel {
             VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
@@ -163,28 +163,26 @@ struct FCPageRail: View {
                         .fcTypography(.mono)
                 }
 
-                ZStack(alignment: .bottom) {
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
-                            moduleSection(
-                                title: "Live Transcripts",
-                                subtitle: "Plays in sequence on Start",
-                                module: .liveTranscripts,
-                                pages: livePages
-                            )
+                addPageButton(theme: theme)
 
-                            moduleSection(
-                                title: "Archive",
-                                subtitle: "Stored only • not in sequence",
-                                module: .archive,
-                                pages: archivePages
-                            )
-                        }
-                        .padding(.bottom, railActionDockHeight + FCSpacingToken.s8.rawValue)
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                        moduleSection(
+                            title: "Live Transcripts",
+                            subtitle: "Plays in sequence on Start",
+                            emptyMessage: "No live pages yet",
+                            module: .liveTranscripts,
+                            pages: livePages
+                        )
+
+                        moduleSection(
+                            title: "Archive",
+                            subtitle: "Stored only • not in sequence",
+                            emptyMessage: "No archived pages",
+                            module: .archive,
+                            pages: archivePages
+                        )
                     }
-                    .frame(maxHeight: .infinity, alignment: .top)
-
-                    railActionDock(height: railActionDockHeight)
                 }
                 .frame(maxHeight: .infinity, alignment: .top)
             }
@@ -197,216 +195,126 @@ struct FCPageRail: View {
     }
 
     @ViewBuilder
+    private func addPageButton(theme: FCTheme) -> some View {
+        Button(action: onAddLivePage) {
+            HStack(spacing: FCSpacingToken.s8.rawValue) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                Text("Add Page")
+                    .fcTypography(.label)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, FCSpacingToken.s12.rawValue)
+            .padding(.vertical, FCSpacingToken.s8.rawValue)
+            .foregroundStyle(theme.color(.accentPrimary))
+            .background(
+                RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
+                    .fill(theme.color(.accentPrimary).opacity(0.12))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
+                    .stroke(theme.color(.accentPrimary).opacity(0.24), lineWidth: FCStrokeToken.thin.rawValue)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
     private func moduleSection(
         title: String,
         subtitle: String,
+        emptyMessage: String,
         module: PageModule,
         pages: [SidebarPageRowModel]
     ) -> some View {
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
         let isSelectedModule = selectedModule == module
 
-        VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
-            HStack(alignment: .firstTextBaseline, spacing: FCSpacingToken.s8.rawValue) {
-                Text(title)
-                    .foregroundStyle(theme.color(.textSecondary))
-                    .fcTypography(.label)
-                Spacer()
-                Text("\(pages.count)")
+        if pages.isEmpty {
+            VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
+                HStack(alignment: .firstTextBaseline, spacing: FCSpacingToken.s8.rawValue) {
+                    Text(title)
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .fcTypography(.label)
+                    Spacer()
+                    Text("0")
+                        .foregroundStyle(theme.color(.textTertiary))
+                        .fcTypography(.mono)
+                }
+
+                Text(emptyMessage)
                     .foregroundStyle(theme.color(.textTertiary))
-                    .fcTypography(.mono)
+                    .fcTypography(.caption)
             }
+            .padding(.horizontal, FCSpacingToken.s8.rawValue)
+            .padding(.vertical, FCSpacingToken.s4.rawValue)
+        } else {
+            VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                HStack(alignment: .firstTextBaseline, spacing: FCSpacingToken.s8.rawValue) {
+                    Text(title)
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .fcTypography(.label)
+                    Spacer()
+                    Text("\(pages.count)")
+                        .foregroundStyle(theme.color(.textTertiary))
+                        .fcTypography(.mono)
+                }
 
-            Text(subtitle)
-                .foregroundStyle(theme.color(.textTertiary))
-                .fcTypography(.caption)
-                .lineLimit(1)
-                .truncationMode(.tail)
+                Text(subtitle)
+                    .foregroundStyle(theme.color(.textTertiary))
+                    .fcTypography(.caption)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
 
-            pageList(pages: pages, module: module)
+                pageList(pages: pages, module: module)
+            }
+            .padding(.horizontal, FCSpacingToken.s12.rawValue)
+            .padding(.vertical, FCSpacingToken.s12.rawValue)
+            .background(
+                RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                    .fill(theme.color(.surfaceGlassStrong).opacity(isSelectedModule ? 0.64 : 0.52))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                    .stroke(
+                        isSelectedModule ? theme.color(.borderFocus) : theme.color(.borderSubtle),
+                        lineWidth: isSelectedModule ? FCStrokeToken.medium.rawValue : FCStrokeToken.thin.rawValue
+                    )
+            )
         }
-        .padding(.horizontal, FCSpacingToken.s12.rawValue)
-        .padding(.vertical, FCSpacingToken.s12.rawValue)
-        .background(
-            RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                .fill(theme.color(.surfaceGlassStrong).opacity(isSelectedModule ? 0.64 : 0.52))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                .stroke(
-                    isSelectedModule ? theme.color(.borderFocus) : theme.color(.borderSubtle),
-                    lineWidth: isSelectedModule ? FCStrokeToken.medium.rawValue : FCStrokeToken.thin.rawValue
-                )
-        )
     }
 
     private func pageList(pages: [SidebarPageRowModel], module: PageModule) -> some View {
         VStack(spacing: FCSpacingToken.s8.rawValue) {
-            if pages.isEmpty {
-                FCPageAppendDropZone(
-                    message: module == .liveTranscripts
-                        ? "No live transcript pages yet"
-                        : "Archived pages will appear here",
-                    onDropPayload: { payload in
-                        guard payload.kind == .page, payload.sourceModule == module else { return false }
-                        return onReorderPage(payload.id, module, 0)
+            ForEach(Array(pages.enumerated()), id: \.element.id) { pageIndex, page in
+                FCSidebarPageRow(
+                    row: page,
+                    canDelete: canDeletePages,
+                    isEditing: editingPageID == page.id,
+                    draftTitle: $draftTitle,
+                    onSelect: { onSelectPage(page.id) },
+                    onBeginRename: {
+                        editingPageID = page.id
+                        draftTitle = page.baseTitle
                     },
-                    minHeight: 40
-                )
-            } else {
-                ForEach(Array(pages.enumerated()), id: \.element.id) { pageIndex, page in
-                    FCSidebarPageRow(
-                        row: page,
-                        canDelete: canDeletePages,
-                        isEditing: editingPageID == page.id,
-                        draftTitle: $draftTitle,
-                        onSelect: { onSelectPage(page.id) },
-                        onBeginRename: {
-                            editingPageID = page.id
-                            draftTitle = page.baseTitle
-                        },
-                        onCommitRename: {
-                            editingPageID = nil
-                            onRenamePage(page.id, draftTitle)
-                        },
-                        onCancelRename: {
-                            editingPageID = nil
-                        },
-                        onSave: { onSavePage(page.id) },
-                        onDelete: { onDeletePage(page.id) },
-                        onDropPayload: { payload, edge in
-                            guard payload.kind == .page, payload.sourceModule == module else { return false }
-                            let targetIndex = edge == .before ? pageIndex : (pageIndex + 1)
-                            return onReorderPage(payload.id, module, targetIndex)
-                        }
-                    )
-                }
-
-                FCPageAppendDropZone(
-                    message: "Drop page to move to end",
-                    onDropPayload: { payload in
-                        guard payload.kind == .page, payload.sourceModule == module else { return false }
-                        return onReorderPage(payload.id, module, pages.count)
-                    }
+                    onCommitRename: {
+                        editingPageID = nil
+                        onRenamePage(page.id, draftTitle)
+                    },
+                    onCancelRename: {
+                        editingPageID = nil
+                    },
+                    onSave: { onSavePage(page.id) },
+                    onDelete: { onDeletePage(page.id) },
+                    onMoveUp: { onMovePageUp(page.id, module) },
+                    onMoveDown: { onMovePageDown(page.id, module) },
+                    canMoveUp: pageIndex > 0,
+                    canMoveDown: pageIndex < pages.count - 1
                 )
             }
         }
     }
 
-    @ViewBuilder
-    private func railActionDock(height: CGFloat) -> some View {
-        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
-
-        VStack(spacing: 0) {
-            LinearGradient(
-                colors: [
-                    theme.color(.surfaceGlass).opacity(0),
-                    theme.color(.surfaceGlass).opacity(0.55)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 14)
-            .allowsHitTesting(false)
-
-            railActionButton(
-                title: "Add Page",
-                icon: "plus.circle.fill",
-                tint: .accentPrimary,
-                action: onAddLivePage
-            )
-            .padding(.horizontal, FCSpacingToken.s4.rawValue)
-            .padding(.top, FCSpacingToken.s4.rawValue)
-            .padding(.bottom, FCSpacingToken.s4.rawValue)
-            .background(
-                RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                    .fill(theme.color(.surfaceGlassStrong).opacity(0.84))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                    .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
-            )
-        }
-        .padding(.horizontal, FCSpacingToken.s8.rawValue)
-        .padding(.bottom, FCSpacingToken.s4.rawValue)
-        .frame(maxWidth: .infinity)
-        .frame(height: height, alignment: .bottom)
-    }
-
-    @ViewBuilder
-    private func railActionButton(title: String, icon: String, tint: FCColorToken, action: @escaping () -> Void) -> some View {
-        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
-
-        Button(action: action) {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: FCSpacingToken.s8.rawValue) {
-                    Image(systemName: icon)
-                        .font(.system(size: 12, weight: .semibold))
-                    Text(title)
-                        .fcTypography(.label)
-                }
-                HStack(spacing: FCSpacingToken.s8.rawValue) {
-                    Image(systemName: icon)
-                        .font(.system(size: 12, weight: .semibold))
-                    Text("Add")
-                        .fcTypography(.label)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, FCSpacingToken.s12.rawValue)
-            .padding(.vertical, FCSpacingToken.s8.rawValue)
-            .foregroundStyle(theme.color(tint))
-            .background(
-                RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                    .fill(theme.color(tint).opacity(0.12))
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private enum FCPageDropEdge {
-    case before
-    case after
-}
-
-private struct FCPageAppendDropZone: View {
-    let message: String?
-    let onDropPayload: (SidebarDragPayload) -> Bool
-    var minHeight: CGFloat = 18
-
-    @State private var isTargeted = false
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
-
-        VStack(spacing: FCSpacingToken.s4.rawValue) {
-            RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                .fill(theme.color(.accentInfo).opacity(isTargeted ? 0.18 : 0.06))
-                .overlay(
-                    RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                        .stroke(
-                            isTargeted ? theme.color(.borderFocus) : theme.color(.borderSubtle).opacity(0.3),
-                            lineWidth: isTargeted ? FCStrokeToken.medium.rawValue : FCStrokeToken.thin.rawValue
-                        )
-                )
-                .frame(minHeight: minHeight)
-
-            if let message {
-                Text(message)
-                    .foregroundStyle(theme.color(.textTertiary))
-                    .fcTypography(.caption)
-            }
-        }
-        .dropDestination(for: SidebarDragPayload.self) { payloads, _ in
-            guard let payload = payloads.first else { return false }
-            return onDropPayload(payload)
-        } isTargeted: { targeted in
-            isTargeted = targeted
-        }
-    }
 }
 
 private struct FCSidebarPageRow: View {
@@ -420,11 +328,12 @@ private struct FCSidebarPageRow: View {
     let onCancelRename: () -> Void
     let onSave: () -> Void
     let onDelete: () -> Void
-    let onDropPayload: ((SidebarDragPayload, FCPageDropEdge) -> Bool)?
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
+    let canMoveUp: Bool
+    let canMoveDown: Bool
 
     @State private var isHovered = false
-    @State private var rowHeight: CGFloat = 0
-    @State private var isDropTargeted = false
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -504,23 +413,6 @@ private struct FCSidebarPageRow: View {
                 )
         )
         .contentShape(RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous))
-        .background(
-            GeometryReader { proxy in
-                Color.clear
-                    .onAppear { rowHeight = proxy.size.height }
-                    .onChange(of: proxy.size.height) { _, newValue in
-                        rowHeight = newValue
-                    }
-            }
-        )
-        .overlay(alignment: .top) {
-            if isDropTargeted {
-                Capsule(style: .continuous)
-                    .fill(theme.color(.borderFocus))
-                    .frame(height: 2)
-                    .padding(.horizontal, 4)
-            }
-        }
         .onTapGesture {
             if !isEditing {
                 onSelect()
@@ -531,20 +423,15 @@ private struct FCSidebarPageRow: View {
                 isHovered = hovering
             }
         }
-        .draggable(SidebarDragPayload.page(row.id, sourceModule: row.module))
-        .dropDestination(for: SidebarDragPayload.self) { payloads, location in
-            guard let onDropPayload, let payload = payloads.first else { return false }
-            let midpoint = max(rowHeight, 1) / 2
-            let edge: FCPageDropEdge = location.y <= midpoint ? .before : .after
-            return onDropPayload(payload, edge)
-        } isTargeted: { targeted in
-            isDropTargeted = targeted
-        }
         .contextMenu {
             if row.needsSave || row.saveFailed {
                 Button("Save", action: onSave)
             }
             Button("Rename", action: onBeginRename)
+            Button("Move Up", action: onMoveUp)
+                .disabled(!canMoveUp)
+            Button("Move Down", action: onMoveDown)
+                .disabled(!canMoveDown)
             if canDelete {
                 Button(role: .destructive, action: onDelete) {
                     Label("Delete Page", systemImage: "trash")
@@ -554,13 +441,129 @@ private struct FCSidebarPageRow: View {
     }
 }
 
-struct FCQuickActionButton: View {
+struct FCActionBar: View {
+    let isRunning: Bool
+    let startAvailabilityReason: FocusCueService.StartAvailabilityReason
+    @Bindable var settings: NotchSettings
+    let hasDirtyPages: Bool
+    let showOnboardingPrompt: Bool
+    let onStart: () -> Void
+    let onStop: () -> Void
+    let onOpenDocument: () -> Void
+    let onSaveAllDirtyPages: () -> Void
+    let onDraft: () -> Void
+    let onAddPage: () -> Void
+    let onSettings: () -> Void
+    let onOpenOnboarding: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isStartHovered = false
+
+    private var canStart: Bool {
+        !isRunning && startAvailabilityReason == .ready
+    }
+
+    private var helperText: String {
+        if isRunning {
+            return "Live sequence is running. Stop playback to return to editing."
+        }
+        switch startAvailabilityReason {
+        case .ready:
+            return "Starts from the selected live page and continues through remaining pages."
+        case .noSelection:
+            return "Select a page in Live Transcripts to enable Start."
+        case .selectedPageInArchive:
+            return "Archive pages do not play. Move this page to Live Transcripts."
+        case .selectedLivePageEmpty:
+            return "Add script text to this live transcript page to enable Start."
+        case .noNonEmptyLivePages:
+            return "Add script to a live transcript page to start."
+        }
+    }
+
+    var body: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+        let accent = isRunning ? theme.color(.stateError) : theme.color(.accentPrimary)
+
+        FCGlassPanel {
+            VStack(spacing: FCSpacingToken.s16.rawValue) {
+                Button {
+                    if isRunning { onStop() } else { onStart() }
+                } label: {
+                    HStack(spacing: FCSpacingToken.s8.rawValue) {
+                        Image(systemName: isRunning ? "stop.fill" : "play.fill")
+                            .font(.system(size: 15, weight: .bold))
+                        Text(isRunning ? "Stop Sequence" : "Start Live Sequence")
+                            .fcTypography(.heading)
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        accent.opacity(isStartHovered ? 0.95 : 0.85),
+                                        isRunning ? theme.color(.stateError) : theme.color(.accentInfo)
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(Color.white.opacity(0.22), lineWidth: FCStrokeToken.thin.rawValue)
+                    )
+                    .shadow(color: accent.opacity(FCEffectToken.shadowFloat.opacity), radius: 16, y: 6)
+                }
+                .buttonStyle(.plain)
+                .disabled(!(isRunning || canStart))
+                .opacity((isRunning || canStart) ? 1 : 0.45)
+                .animation(theme.animation(.fast), value: isStartHovered)
+                .onHover { isStartHovered = $0 }
+                .help(helperText)
+
+                VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                    Text("Listening Mode")
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .fcTypography(.label)
+
+                    Picker("", selection: $settings.listeningMode) {
+                        ForEach(ListeningMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    Text(settings.listeningMode.description)
+                        .foregroundStyle(theme.color(.textTertiary))
+                        .fcTypography(.caption)
+                }
+
+                HStack(spacing: FCSpacingToken.s8.rawValue) {
+                    FCActionTile(title: "Open", icon: "folder", accent: .accentInfo, action: onOpenDocument)
+                    FCActionTile(title: "Save", icon: "square.and.arrow.down", accent: .accentInfo, enabled: hasDirtyPages, action: onSaveAllDirtyPages)
+                    FCActionTile(title: "Draft", icon: "mic.badge.plus", accent: .accentCTA, action: onDraft)
+                    FCActionTile(title: "Add Page", icon: "plus.square.on.square", accent: .accentPrimary, action: onAddPage)
+                    FCActionTile(title: "Settings", icon: "slider.horizontal.3", accent: .accentInfo, action: onSettings)
+                    if showOnboardingPrompt {
+                        FCActionTile(title: "Setup", icon: "sparkles", accent: .accentCTA, action: onOpenOnboarding)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct FCActionTile: View {
     let title: String
-    let subtitle: String
     let icon: String
     let accent: FCColorToken
+    var enabled: Bool = true
     let action: () -> Void
-    let isEnabled: Bool
 
     @State private var isHovered = false
     @Environment(\.colorScheme) private var colorScheme
@@ -570,296 +573,34 @@ struct FCQuickActionButton: View {
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
 
         Button(action: action) {
-            HStack(spacing: FCSpacingToken.s12.rawValue) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                        .fill(theme.color(accent).opacity(0.20))
-                    Image(systemName: icon)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(theme.color(accent))
-                }
-                .frame(width: 34, height: 34)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .foregroundStyle(theme.color(.textPrimary))
-                        .fcTypography(.label)
-                    Text(subtitle)
-                        .foregroundStyle(theme.color(.textTertiary))
-                        .lineLimit(1)
-                        .fcTypography(.caption)
-                }
-                Spacer(minLength: 0)
+            VStack(spacing: FCSpacingToken.s4.rawValue) {
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(theme.color(accent))
+                Text(title)
+                    .fcTypography(.caption)
+                    .foregroundStyle(theme.color(accent))
+                    .lineLimit(1)
             }
-            .padding(FCSpacingToken.s12.rawValue)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 54)
             .background(
-                RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                    .fill(
-                        isHovered
-                            ? theme.color(.surfaceGlassStrong).opacity(0.86)
-                            : theme.color(.surfaceGlass).opacity(0.62)
-                    )
+                RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
+                    .fill(theme.color(accent).opacity(isHovered ? 0.24 : 0.12))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                    .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+                RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
+                    .stroke(theme.color(accent).opacity(isHovered ? 0.32 : 0), lineWidth: FCStrokeToken.thin.rawValue)
             )
-            .contentShape(RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous))
         }
         .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.45)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.45)
         .onHover { hovering in
-            withAnimation(theme.animation(.fast)) {
+            withAnimation(.easeInOut(duration: 0.15)) {
                 isHovered = hovering
             }
         }
-    }
-}
-
-struct FCPlaybackHeroPanel: View {
-    let isRunning: Bool
-    let startAvailabilityReason: FocusCueService.StartAvailabilityReason
-    let onStart: () -> Void
-    let onStop: () -> Void
-
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isHovered = false
-
-    private var helperText: String {
-        if isRunning {
-            return "Live sequence is running. Stop playback to return to editing."
-        }
-        switch startAvailabilityReason {
-        case .ready:
-            return "Starts from the selected live page and continues through remaining non-empty live transcript pages."
-        case .noSelection:
-            return "Select a page in Live Transcripts to enable Start."
-        case .selectedPageInArchive:
-            return "Archive pages do not play. Move this page to Live Transcripts to start."
-        case .selectedLivePageEmpty:
-            return "Add script text to this live transcript page to enable Start."
-        case .noNonEmptyLivePages:
-            return "Add script to a live transcript page to start a sequence."
-        }
-    }
-
-    private var canStart: Bool {
-        !isRunning && startAvailabilityReason == .ready
-    }
-
-    private var primaryLabel: String {
-        isRunning ? "Stop" : "Start Live Sequence"
-    }
-
-    var body: some View {
-        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
-        let accent = isRunning ? theme.color(.stateError) : theme.color(.accentPrimary)
-
-        FCGlassPanel(emphasized: true) {
-            VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
-                VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
-                    Text("Start Live Sequence")
-                        .foregroundStyle(theme.color(.textPrimary))
-                        .fcTypography(.heading)
-                    Text("Only pages in Live Transcripts play in order when Start is pressed.")
-                        .foregroundStyle(theme.color(.textSecondary))
-                        .fcTypography(.bodyM)
-                }
-
-                Button {
-                    if isRunning {
-                        onStop()
-                    } else {
-                        onStart()
-                    }
-                } label: {
-                    HStack(spacing: FCSpacingToken.s8.rawValue) {
-                        Image(systemName: isRunning ? "stop.fill" : "play.fill")
-                            .font(.system(size: 13, weight: .bold))
-                        Text(primaryLabel)
-                            .fcTypography(.label)
-                        Spacer()
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, FCSpacingToken.s12.rawValue)
-                    .frame(minHeight: 46)
-                    .background(
-                        RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        accent.opacity(isHovered ? 0.95 : 0.85),
-                                        isRunning ? theme.color(.stateError) : theme.color(.accentInfo)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                            .stroke(Color.white.opacity(0.22), lineWidth: FCStrokeToken.thin.rawValue)
-                    )
-                    .shadow(color: accent.opacity(FCEffectToken.shadowFloat.opacity), radius: 16, y: 6)
-                }
-                .buttonStyle(.plain)
-                .disabled(!(isRunning || canStart))
-                .opacity((isRunning || canStart) ? 1 : 0.45)
-                .animation(theme.animation(.fast), value: isHovered)
-                .onHover { isHovered = $0 }
-
-                HStack(spacing: FCSpacingToken.s8.rawValue) {
-                    Image(systemName: isRunning ? "dot.radiowaves.left.and.right" : "info.circle")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(isRunning ? theme.color(.stateSuccess) : theme.color(.textTertiary))
-                    Text(helperText)
-                        .foregroundStyle(theme.color(.textSecondary))
-                        .fcTypography(.bodyM)
-                        .lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-    }
-}
-
-struct FCCommandCenter: View {
-    let fileName: String?
-    let hasUnsavedChanges: Bool
-    let hasDirtyPages: Bool
-    let modeLabel: String
-    let modeDescription: String
-    let onOpenDocument: (() -> Void)?
-    let onSaveAllDirtyPages: () -> Void
-    let onDraft: () -> Void
-    let onAddPage: () -> Void
-    let onSettings: () -> Void
-    let onOpenOnboarding: () -> Void
-    let showOnboardingPrompt: Bool
-
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
-
-        FCGlassPanel {
-            VStack(alignment: .leading, spacing: FCSpacingToken.s16.rawValue) {
-                VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
-                    Text("Command Center")
-                        .foregroundStyle(theme.color(.textPrimary))
-                        .fcTypography(.heading)
-                    Text("Fast access to core actions and setup.")
-                        .foregroundStyle(theme.color(.textSecondary))
-                        .fcTypography(.bodyM)
-                }
-
-                VStack(spacing: FCSpacingToken.s8.rawValue) {
-                    if let onOpenDocument {
-                        FCQuickActionButton(
-                            title: "Open Script File",
-                            subtitle: fileName ?? "Open a .focuscue file or import notes",
-                            icon: "folder",
-                            accent: .accentInfo,
-                            action: onOpenDocument,
-                            isEnabled: true
-                        )
-                    }
-                    FCQuickActionButton(
-                        title: "Save All Changes",
-                        subtitle: "Persist pending edits to draft files",
-                        icon: "square.and.arrow.down.on.square",
-                        accent: .accentInfo,
-                        action: onSaveAllDirtyPages,
-                        isEnabled: hasDirtyPages
-                    )
-                    FCQuickActionButton(
-                        title: "Draft Script",
-                        subtitle: "Record and refine with AI",
-                        icon: "mic.badge.plus",
-                        accent: .accentCTA,
-                        action: onDraft,
-                        isEnabled: true
-                    )
-                    FCQuickActionButton(
-                        title: "New Live Transcript Page",
-                        subtitle: "Add a page to the playable live sequence",
-                        icon: "plus.square.on.square",
-                        accent: .accentPrimary,
-                        action: onAddPage,
-                        isEnabled: true
-                    )
-                    FCQuickActionButton(
-                        title: "Open Settings",
-                        subtitle: "Tune guidance and teleprompter",
-                        icon: "slider.horizontal.3",
-                        accent: .accentInfo,
-                        action: onSettings,
-                        isEnabled: true
-                    )
-                }
-
-                VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
-                    HStack(spacing: FCSpacingToken.s8.rawValue) {
-                        Circle()
-                            .fill(hasUnsavedChanges ? theme.color(.stateWarning) : theme.color(.stateSuccess))
-                            .frame(width: 7, height: 7)
-                        Text(fileName ?? "Untitled Script")
-                            .foregroundStyle(theme.color(.textSecondary))
-                            .lineLimit(1)
-                            .fcTypography(.caption)
-                        Spacer()
-                    }
-                    Text(modeLabel)
-                        .foregroundStyle(theme.color(.textSecondary))
-                        .fcTypography(.caption)
-                    Text(modeDescription)
-                        .foregroundStyle(theme.color(.textTertiary))
-                        .fcTypography(.caption)
-                }
-
-                if showOnboardingPrompt {
-                    FCGlassPanel(includePadding: false) {
-                        VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
-                            Text("Getting Started")
-                                .foregroundStyle(theme.color(.textPrimary))
-                                .fcTypography(.label)
-                            Text("Take the guided setup tour to configure permissions and workflow.")
-                                .foregroundStyle(theme.color(.textSecondary))
-                                .fcTypography(.caption)
-                            Button {
-                                onOpenOnboarding()
-                            } label: {
-                                HStack(spacing: FCSpacingToken.s8.rawValue) {
-                                    Image(systemName: "sparkles")
-                                    Text("Open Guided Setup")
-                                }
-                                .fcTypography(.label)
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(minHeight: 34)
-                                .background(
-                                    RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [theme.color(.accentInfo), theme.color(.accentPrimary)],
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                        )
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .padding(FCSpacingToken.s12.rawValue)
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .help(title)
     }
 }
 
