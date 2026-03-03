@@ -77,44 +77,44 @@ Happy presenting! [wave]
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
 
         GeometryReader { proxy in
-            let isCompactLayout = proxy.size.width < 960
+            let isCompactLayout = proxy.size.width < 920
             let contentPadding = FCSpacingToken.s16.rawValue
             let mainStackSpacing = FCSpacingToken.s12.rawValue
             let columnSpacing = FCSpacingToken.s12.rawValue
             let sidebarWidth: CGFloat = 220
-            let editorMinHeight: CGFloat = 380
+            let editorMinHeight: CGFloat = 220
 
             ZStack {
                 FCWindowBackdrop()
 
-                ScrollView(.vertical, showsIndicators: true) {
-                    VStack(alignment: .leading, spacing: mainStackSpacing) {
-                        FCWindowHeader(
-                            subtitle: "Stay on script. Stay on camera. Stay natural.",
-                            compact: isCompactLayout
-                        )
+                VStack(alignment: .leading, spacing: mainStackSpacing) {
+                    FCWindowHeader(
+                        subtitle: "Stay on script. Stay on camera. Stay natural.",
+                        compact: isCompactLayout
+                    )
 
-                        if isCompactLayout {
-                            VStack(alignment: .leading, spacing: mainStackSpacing) {
-                                pageRailView(theme: theme, width: sidebarWidth)
+                    if isCompactLayout {
+                        VStack(alignment: .leading, spacing: mainStackSpacing) {
+                            pageRailView(theme: theme, width: sidebarWidth)
+                            editorPanel(theme: theme, minHeight: editorMinHeight)
+                            actionBarView(theme: theme)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    } else {
+                        HStack(alignment: .top, spacing: columnSpacing) {
+                            pageRailView(theme: theme, width: sidebarWidth)
+
+                            VStack(spacing: mainStackSpacing) {
                                 editorPanel(theme: theme, minHeight: editorMinHeight)
                                 actionBarView(theme: theme)
                             }
-                        } else {
-                            HStack(alignment: .top, spacing: columnSpacing) {
-                                pageRailView(theme: theme, width: sidebarWidth)
-
-                                VStack(spacing: mainStackSpacing) {
-                                    editorPanel(theme: theme, minHeight: editorMinHeight)
-                                    actionBarView(theme: theme)
-                                }
-                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
-                    .padding(contentPadding)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .frame(minHeight: proxy.size.height, alignment: .top)
                 }
+                .padding(contentPadding)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .opacity(revealMainWindow ? 1 : 0)
                 .offset(y: revealMainWindow ? 0 : (reduceMotion ? 0 : 12))
                 .animation(theme.animation(.emphasized, curve: .enter), value: revealMainWindow)
@@ -325,9 +325,11 @@ Happy presenting! [wave]
                             )
                     )
                     .focused($isTextFocused)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .frame(maxWidth: .infinity, minHeight: minHeight)
+        .frame(maxWidth: .infinity, minHeight: minHeight, maxHeight: .infinity)
     }
 
     @ViewBuilder
