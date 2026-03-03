@@ -146,7 +146,7 @@ struct OnboardingWizardView: View {
     @StateObject private var permissions = PermissionCenter()
     @StateObject private var session: OnboardingSession
     @State private var showDetourSettings = false
-    @State private var detourSettingsTab: SettingsTab = .appearance
+    @State private var detourSettingsTab: SettingsTab = .display
     @State private var pendingPermission: OnboardingPermissionKind?
 
     let onComplete: (OnboardingCompletion) -> Void
@@ -192,9 +192,9 @@ struct OnboardingWizardView: View {
         case .modes, .microphone, .speech:
             return .guidance
         case .surfaces:
-            return .teleprompter
+            return .display
         case .welcome, .ready:
-            return requiresSpeechRecognition || draft.listeningMode == .silencePaused ? .guidance : .teleprompter
+            return requiresSpeechRecognition || draft.listeningMode == .silencePaused ? .guidance : .display
         }
     }
 
