@@ -3,9 +3,7 @@
 //  FocusCue
 //
 
-import CoreTransferable
 import Foundation
-import UniformTypeIdentifiers
 
 struct FocusCueDocumentV3: Codable, Equatable {
     static let currentSchemaVersion = 3
@@ -94,26 +92,4 @@ struct SidebarSectionModel: Identifiable, Equatable {
             return .archive
         }
     }
-}
-
-enum SidebarDragItemKind: String, Codable {
-    case page
-}
-
-struct SidebarDragPayload: Codable, Equatable, Transferable {
-    var kind: SidebarDragItemKind
-    var id: UUID
-    var sourceModule: PageModule
-
-    static func page(_ id: UUID, sourceModule: PageModule) -> SidebarDragPayload {
-        SidebarDragPayload(kind: .page, id: id, sourceModule: sourceModule)
-    }
-
-    static var transferRepresentation: some TransferRepresentation {
-        CodableRepresentation(contentType: .focusCueSidebarPayload)
-    }
-}
-
-extension UTType {
-    static let focusCueSidebarPayload = UTType(exportedAs: "com.saransh1337.focuscue.sidebar-payload")
 }
