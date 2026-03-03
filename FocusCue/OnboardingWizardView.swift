@@ -329,26 +329,10 @@ struct OnboardingWizardView: View {
         VStack(spacing: FCSpacingToken.s16.rawValue) {
             Spacer(minLength: 0)
 
-            ZStack {
-                RoundedRectangle(cornerRadius: FCShapeToken.radius18.rawValue, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [theme.color(.accentInfo).opacity(0.20), theme.color(.accentPrimary).opacity(0.20)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                Image(systemName: "video.bubble.left.fill")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [theme.color(.accentInfo), theme.color(.accentPrimary)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            }
-            .frame(width: 64, height: 64)
+            FCBrandIconView(
+                size: 64,
+                cornerRadius: FCShapeToken.radius18.rawValue
+            )
 
             VStack(spacing: FCSpacingToken.s8.rawValue) {
                 Text(currentStep.title)

@@ -672,12 +672,7 @@ struct AboutView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            if let icon = NSImage(named: "AppIcon") {
-                Image(nsImage: icon)
-                    .resizable()
-                    .frame(width: 80, height: 80)
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-            }
+            FCBrandIconView(size: 80, cornerRadius: 18)
 
             VStack(spacing: 4) {
                 Text("FocusCue")

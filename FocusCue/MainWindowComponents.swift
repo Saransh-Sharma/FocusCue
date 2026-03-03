@@ -94,21 +94,11 @@ struct FCWindowHeader: View {
 
         VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
             HStack(spacing: FCSpacingToken.s12.rawValue) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [theme.color(.accentInfo), theme.color(.accentPrimary)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                    Image(systemName: "text.word.spacing")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-                .frame(width: 42, height: 42)
-                .shadow(color: theme.color(.accentInfo).opacity(FCEffectToken.focusGlow.opacity), radius: 14, y: 2)
+                FCBrandIconView(
+                    size: 42,
+                    cornerRadius: FCShapeToken.radius14.rawValue,
+                    shadowRadius: 14
+                )
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("FocusCue")
