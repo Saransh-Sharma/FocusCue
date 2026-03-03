@@ -295,6 +295,9 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 // MARK: - Settings View
 
 struct SettingsView: View {
+    private let settingsWidth: CGFloat = 560
+    private let settingsHeight: CGFloat = 640
+
     @Bindable var settings: NotchSettings
     let launchedFromOnboarding: Bool
     let onReturnToGuidedTemplate: (() -> Void)?
@@ -344,8 +347,7 @@ struct SettingsView: View {
         } footer: {
             footer
         }
-        .frame(width: 540)
-        .frame(minHeight: 320, maxHeight: 600)
+        .frame(width: settingsWidth, height: settingsHeight)
         .alert("Reset All Settings?", isPresented: $showResetConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Reset", role: .destructive) {
@@ -461,6 +463,7 @@ struct SettingsView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var onboardingCallout: some View {
