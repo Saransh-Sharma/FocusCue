@@ -6,13 +6,15 @@
 import SwiftUI
 
 struct DraftSessionView: View {
-    @Environment(\.dismiss) private var dismiss
     @State private var draftService = ScriptDraftService()
+    @State private var entitlements = EntitlementService.shared
     @State private var editableTranscript: String = ""
     @State private var phase: Phase = .recording
 
     /// Called when the user accepts a script (raw or refined).
     var onAccept: (String) -> Void
+    var onClose: () -> Void
+    var onBlockedFeature: (FeatureGate) -> Void
 
     enum Phase {
         case recording
@@ -178,7 +180,7 @@ struct DraftSessionView: View {
         HStack {
             Button("Cancel") {
                 draftService.stopRecording()
-                dismiss()
+                onClose()
             }
             .buttonStyle(.borderless)
             .foregroundStyle(.secondary)
@@ -210,7 +212,7 @@ struct DraftSessionView: View {
                 HStack(spacing: 8) {
                     Button {
                         onAccept(editableTranscript)
-                        dismiss()
+                        onClose()
                     } label: {
                         Text("Use as Script")
                             .font(.system(size: 13, weight: .medium))
@@ -219,6 +221,10 @@ struct DraftSessionView: View {
                     .controlSize(.regular)
 
                     Button {
+                        guard entitlements.has(.aiRefinement) else {
+                            onBlockedFeature(.aiRefinement)
+                            return
+                        }
                         // Update the service's raw transcript with edits, then refine
                         draftService.rawTranscript = editableTranscript
                         withAnimation(.easeInOut(duration: 0.2)) {
@@ -229,7 +235,7 @@ struct DraftSessionView: View {
                         HStack(spacing: 5) {
                             Image(systemName: "sparkles")
                                 .font(.system(size: 11))
-                            Text("Refine with AI")
+                            Text(entitlements.has(.aiRefinement) ? "Refine with AI" : "Refine with AI (Pro)")
                                 .font(.system(size: 13, weight: .medium))
                         }
                     }
@@ -253,7 +259,7 @@ struct DraftSessionView: View {
 
                     Button {
                         onAccept(draftService.refinedText)
-                        dismiss()
+                        onClose()
                     } label: {
                         HStack(spacing: 5) {
                             Image(systemName: "checkmark")

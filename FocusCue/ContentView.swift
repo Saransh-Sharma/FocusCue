@@ -10,22 +10,20 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @State private var service = FocusCueService.shared
+    @State private var entitlements = EntitlementService.shared
     @State private var isRunning = false
     @State private var isDroppingPresentation = false
     @State private var dropError: String?
     @State private var dropAlertTitle = "Import Error"
-    @State private var showSettings = false
-    @State private var settingsInitialTab: SettingsTab = .display
-    @State private var settingsLaunchedFromOnboarding = false
     @State private var settingsGuidedTemplateDraft: OnboardingDraft?
-    @State private var showAbout = false
-    @State private var showDraft = false
     @State private var showOnboarding = false
     @State private var onboardingInitialStep: OnboardingStep = .welcome
     @State private var onboardingEntryContext: OnboardingEntryContext = .firstRun
     @State private var revealMainWindow = false
     @State private var showDeletePageConfirmation = false
     @State private var pendingDeletePageID: UUID?
+    @State private var pendingTrialAction: TrialEntryAction?
+    @State private var modalCoordinator = AppModalCoordinator()
 
     @AppStorage(FocusCueOnboardingStorage.completedKey) private var onboardingCompleted = false
     @AppStorage(FocusCueOnboardingStorage.versionKey) private var onboardingVersion = 0
@@ -90,8 +88,17 @@ Happy presenting! [wave]
                 VStack(alignment: .leading, spacing: mainStackSpacing) {
                     FCWindowHeader(
                         subtitle: "Stay on script. Stay on camera. Stay natural.",
+                        brandState: entitlements.brandState,
                         compact: isCompactLayout
                     )
+
+                    if entitlements.tier != .pro {
+                        FCEntitlementStatusCard(
+                            entitlements: entitlements,
+                            onUpgrade: { presentPaywall(.generalAccess) },
+                            onRestore: { restorePurchases() }
+                        )
+                    }
 
                     if isCompactLayout {
                         VStack(alignment: .leading, spacing: mainStackSpacing) {
@@ -166,6 +173,11 @@ Happy presenting! [wave]
         ) {
             Button("Delete Page", role: .destructive) {
                 guard let pageID = pendingDeletePageID else { return }
+                guard entitlements.canPerform(.delete, on: pageID, in: service.workspace) else {
+                    pendingDeletePageID = nil
+                    presentPaywall(.multiPageEditing)
+                    return
+                }
                 withAnimation(theme.spring(.snappy)) {
                     service.deletePage(pageID)
                 }
@@ -181,25 +193,17 @@ Happy presenting! [wave]
             }
         }
         .frame(minWidth: 920, minHeight: 540)
-        .sheet(isPresented: $showDraft) {
-            DraftSessionView { script in
-                let trimmed = script.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { return }
-                service.replaceWorkspaceWithSinglePage(text: trimmed, markAsSaved: true)
-            }
-        }
-        .sheet(isPresented: $showSettings) {
-            SettingsView(
-                settings: NotchSettings.shared,
-                initialTab: settingsInitialTab,
-                launchedFromOnboarding: settingsLaunchedFromOnboarding,
-                onReturnToGuidedTemplate: settingsGuidedTemplateDraft != nil ? {
-                    returnToGuidedTemplateFromSettings()
-                } : nil
+        .sheet(
+            isPresented: Binding(
+                get: { modalCoordinator.activeRoute != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        modalCoordinator.clear()
+                    }
+                }
             )
-        }
-        .sheet(isPresented: $showAbout) {
-            AboutView()
+        ) {
+            modalSheetContent
         }
         .sheet(isPresented: $showOnboarding) {
             OnboardingWizardView(
@@ -214,7 +218,7 @@ Happy presenting! [wave]
             presentSettings()
         }
         .onReceive(NotificationCenter.default.publisher(for: .openAbout)) { _ in
-            showAbout = true
+            modalCoordinator.present(.about)
         }
         .onReceive(NotificationCenter.default.publisher(for: .openOnboarding)) { _ in
             settingsGuidedTemplateDraft = nil
@@ -222,10 +226,27 @@ Happy presenting! [wave]
             onboardingEntryContext = .manual
             showOnboarding = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: .presentPaywall)) { notification in
+            let rawValue = notification.object as? String
+            presentPaywall(rawValue.flatMap(FeatureGate.init(rawValue:)) ?? .generalAccess)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .dismissPaywall)) { _ in
+            dismissTopPaywallIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .restorePurchases)) { _ in
+            restorePurchases()
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             isRunning = service.overlayController.isShowing
+            entitlements.refreshPresentationState()
+            entitlements.enforceAllowedSettings()
+            syncLiteSelection()
+            syncDowngradeRouteIfNeeded()
         }
         .onAppear {
+            entitlements.handleAppLaunch()
+            syncLiteSelection()
+            syncDowngradeRouteIfNeeded()
             if !service.restoredWorkspaceFromAutosave && service.totalPageCount == 1 && service.currentPageText.isEmpty {
                 service.setTextForSelectedPage(defaultText)
             }
@@ -253,6 +274,9 @@ Happy presenting! [wave]
 
             revealMainWindow = true
         }
+        .onChange(of: service.selectedPageID) { _, _ in
+            syncLiteSelection()
+        }
     }
 
     // MARK: - Main Window Subviews
@@ -262,12 +286,16 @@ Happy presenting! [wave]
         FCPageRail(
             livePages: liveSidebarRows,
             archivePages: archiveSidebarRows,
+            canAddPages: entitlements.has(.multiPageEditing),
             canDeletePages: service.canDeletePages,
             selectedModule: service.selectedPageModule,
             onSelectPage: { pageID in
                 withAnimation(theme.spring(.snappy)) {
                     service.selectPage(pageID)
                 }
+            },
+            onSelectLockedPage: { pageID in
+                presentLitePageOptions(for: pageID)
             },
             onRenamePage: { pageID, title in
                 service.renamePage(pageID, to: title)
@@ -276,11 +304,17 @@ Happy presenting! [wave]
                 _ = service.savePageDraft(pageID)
             },
             onDeletePage: { pageID in
-                withAnimation(theme.spring(.snappy)) {
-                    service.deletePage(pageID)
+                guard entitlements.canPerform(.delete, on: pageID, in: service.workspace) else {
+                    presentPaywall(.multiPageEditing)
+                    return
                 }
+                pendingDeletePageID = pageID
+                showDeletePageConfirmation = true
             },
             onAddLivePage: { addPage() },
+            onAddLocked: {
+                presentPaywall(.multiPageEditing)
+            },
             onMovePageUp: { pageID, module in
                 movePageUp(pageID, module: module, theme: theme)
             },
@@ -294,6 +328,8 @@ Happy presenting! [wave]
 
     @ViewBuilder
     private func editorPanel(theme: FCTheme, minHeight: CGFloat) -> some View {
+        let canEditSelectedPage = entitlements.canPerform(.editText, on: service.selectedPageID, in: service.workspace)
+
         FCGlassPanel {
             VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
                 HStack(spacing: FCSpacingToken.s8.rawValue) {
@@ -325,6 +361,7 @@ Happy presenting! [wave]
                             )
                     )
                     .focused($isTextFocused)
+                    .disabled(!canEditSelectedPage)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -378,8 +415,13 @@ Happy presenting! [wave]
     private func editorMovePageButton(theme: FCTheme) -> some View {
         if let selectedPageID = service.selectedPageID,
            let selectedModule = service.selectedPageModule {
+            let canMoveSelectedPage = entitlements.canPerform(.moveBetweenSections, on: selectedPageID, in: service.workspace)
             if selectedModule == .liveTranscripts {
                 Button {
+                    guard canMoveSelectedPage else {
+                        presentPaywall(.multiPageEditing)
+                        return
+                    }
                     withAnimation(theme.spring(.snappy)) {
                         service.movePageToArchive(selectedPageID)
                     }
@@ -389,8 +431,13 @@ Happy presenting! [wave]
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(theme.color(.accentInfo))
+                .opacity(canMoveSelectedPage ? 1 : 0.4)
             } else {
                 Button {
+                    guard canMoveSelectedPage else {
+                        presentPaywall(.multiPageEditing)
+                        return
+                    }
                     withAnimation(theme.spring(.snappy)) {
                         service.movePageToLiveTranscripts(selectedPageID)
                     }
@@ -400,6 +447,7 @@ Happy presenting! [wave]
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(theme.color(.accentPrimary))
+                .opacity(canMoveSelectedPage ? 1 : 0.4)
             }
         }
     }
@@ -407,7 +455,12 @@ Happy presenting! [wave]
     @ViewBuilder
     private func editorDeletePageButton(theme: FCTheme) -> some View {
         if let selectedPageID = service.selectedPageID {
+            let canDeleteSelectedPage = entitlements.canPerform(.delete, on: selectedPageID, in: service.workspace)
             Button {
+                guard canDeleteSelectedPage else {
+                    presentPaywall(.multiPageEditing)
+                    return
+                }
                 pendingDeletePageID = selectedPageID
                 showDeletePageConfirmation = true
             } label: {
@@ -416,8 +469,8 @@ Happy presenting! [wave]
             }
             .buttonStyle(.plain)
             .foregroundStyle(theme.color(.stateError))
-            .disabled(!service.canDeletePages)
-            .opacity(service.canDeletePages ? 1 : 0.4)
+            .disabled(!service.canDeletePages || !canDeleteSelectedPage)
+            .opacity((service.canDeletePages && canDeleteSelectedPage) ? 1 : 0.4)
         }
     }
 
@@ -432,6 +485,7 @@ Happy presenting! [wave]
                let selectedModule = service.selectedPageModule {
                 let rows = sidebarRows(for: selectedModule)
                 let selectedIndex = rows.firstIndex(where: { $0.id == selectedPageID })
+                let canMoveBetweenSections = entitlements.canPerform(.moveBetweenSections, on: selectedPageID, in: service.workspace)
 
                 if selectedModule == .liveTranscripts {
                     Button {
@@ -441,6 +495,7 @@ Happy presenting! [wave]
                     } label: {
                         Label("Move to Archive", systemImage: "archivebox")
                     }
+                    .disabled(!canMoveBetweenSections)
                 } else {
                     Button {
                         withAnimation(theme.spring(.snappy)) {
@@ -449,6 +504,7 @@ Happy presenting! [wave]
                     } label: {
                         Label("Move to Live Transcripts", systemImage: "tray.and.arrow.up")
                     }
+                    .disabled(!canMoveBetweenSections)
                 }
 
                 Button {
@@ -456,7 +512,7 @@ Happy presenting! [wave]
                 } label: {
                     Label("Move Up", systemImage: "arrow.up")
                 }
-                .disabled((selectedIndex ?? 0) <= 0)
+                .disabled((selectedIndex ?? 0) <= 0 || !entitlements.canPerform(.reorder, on: selectedPageID, in: service.workspace))
 
                 Button {
                     movePageDown(selectedPageID, module: selectedModule, theme: theme)
@@ -465,16 +521,20 @@ Happy presenting! [wave]
                 }
                 .disabled({
                     guard let selectedIndex else { return true }
-                    return selectedIndex >= (rows.count - 1)
+                    return selectedIndex >= (rows.count - 1) || !entitlements.canPerform(.reorder, on: selectedPageID, in: service.workspace)
                 }())
 
                 Button(role: .destructive) {
+                    guard entitlements.canPerform(.delete, on: selectedPageID, in: service.workspace) else {
+                        presentPaywall(.multiPageEditing)
+                        return
+                    }
                     pendingDeletePageID = selectedPageID
                     showDeletePageConfirmation = true
                 } label: {
                     Label("Delete Page", systemImage: "trash")
                 }
-                .disabled(!service.canDeletePages)
+                .disabled(!service.canDeletePages || !entitlements.canPerform(.delete, on: selectedPageID, in: service.workspace))
             }
         } label: {
             Label("Page Actions", systemImage: "ellipsis.circle")
@@ -489,14 +549,15 @@ Happy presenting! [wave]
         FCActionBar(
             isRunning: isRunning,
             startAvailabilityReason: service.startAvailabilityReason,
+            accessTier: entitlements.tier,
             settings: NotchSettings.shared,
             hasDirtyPages: service.hasDirtyDraftPages,
             showOnboardingPrompt: shouldPresentOnboardingOnLaunch,
             onStart: { run() },
             onStop: { stop() },
             onOpenDocument: { service.openFile() },
-            onSaveAllDirtyPages: { service.saveAllDirtyPages() },
-            onDraft: { showDraft = true },
+            onSaveAllDirtyPages: { saveSelectedOrAllDirtyPages() },
+            onDraft: { openDraft() },
             onAddPage: { addPage() },
             onSettings: { presentSettings() },
             onOpenOnboarding: {
@@ -504,14 +565,164 @@ Happy presenting! [wave]
                 onboardingInitialStep = .welcome
                 onboardingEntryContext = .manual
                 showOnboarding = true
+            },
+            onBlockedFeature: { feature in
+                presentPaywall(feature)
             }
         )
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
+    @ViewBuilder
+    private var modalSheetContent: some View {
+        if let rootRoute = modalCoordinator.stack.first {
+            ZStack {
+                modalBaseContent(for: rootRoute)
+
+                if modalCoordinator.stack.count > 1,
+                   let overlayRoute = modalCoordinator.activeRoute {
+                    Color.black.opacity(0.16)
+                        .ignoresSafeArea()
+
+                    modalOverlayContent(for: overlayRoute)
+                }
+            }
+        } else {
+            Color.clear
+                .frame(width: 1, height: 1)
+        }
+    }
+
+    @ViewBuilder
+    private func modalBaseContent(for route: AppModalCoordinator.Route) -> some View {
+        switch route {
+        case .draft:
+            DraftSessionView(
+                onAccept: { script in
+                    let trimmed = script.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { return }
+                    service.replaceWorkspaceWithSinglePage(text: trimmed, markAsSaved: true)
+                },
+                onClose: {
+                    modalCoordinator.pop()
+                },
+                onBlockedFeature: { feature in
+                    presentPaywall(feature)
+                }
+            )
+        case .settings(let initialTab, let launchedFromOnboarding):
+            SettingsView(
+                settings: NotchSettings.shared,
+                initialTab: initialTab,
+                launchedFromOnboarding: launchedFromOnboarding,
+                onReturnToGuidedTemplate: settingsGuidedTemplateDraft != nil ? {
+                    returnToGuidedTemplateFromSettings()
+                } : nil,
+                onUpgrade: {
+                    presentPaywall(.generalAccess)
+                },
+                onRestorePurchases: {
+                    restorePurchases()
+                },
+                onBlockedFeature: { feature in
+                    presentPaywall(feature)
+                }
+            )
+        case .about:
+            AboutView()
+        case .paywall(let feature):
+            paywallContent(for: feature)
+        case .trialOffer(_):
+            trialOfferContent
+        case .litePageAccess(let pageID):
+            litePageAccessContent(for: pageID)
+        case .downgrade:
+            downgradeContent
+        }
+    }
+
+    @ViewBuilder
+    private func modalOverlayContent(for route: AppModalCoordinator.Route) -> some View {
+        switch route {
+        case .paywall(let feature):
+            paywallContent(for: feature)
+        default:
+            modalBaseContent(for: route)
+        }
+    }
+
+    private func paywallContent(for feature: FeatureGate) -> some View {
+        FCPaywallSheet(
+            feature: feature,
+            entitlements: entitlements,
+            onPurchase: {
+                purchasePro()
+            },
+            onRestore: {
+                restorePurchases()
+            },
+            onDismiss: {
+                modalCoordinator.pop()
+            }
+        )
+    }
+
+    private var trialOfferContent: some View {
+        FCTrialOfferSheet(
+            entitlements: entitlements,
+            onStartTrial: {
+                modalCoordinator.pop()
+                _ = entitlements.startTrialIfNeeded()
+                entitlements.enforceAllowedSettings()
+                DispatchQueue.main.async {
+                    executePendingTrialAction(skipTrialOffer: true)
+                }
+            },
+            onPurchase: {
+                presentPaywall(.generalAccess)
+            },
+            onSkip: {
+                modalCoordinator.pop()
+                DispatchQueue.main.async {
+                    executePendingTrialAction(skipTrialOffer: true)
+                }
+            }
+        )
+    }
+
+    private func litePageAccessContent(for pageID: UUID) -> some View {
+        FCLitePageAccessSheet(
+            onUseThisPage: {
+                activateLitePage(pageID)
+                modalCoordinator.pop()
+            },
+            onUpgrade: {
+                modalCoordinator.replaceTop(with: .paywall(feature: .multiPageEditing))
+            }
+        )
+    }
+
+    private var downgradeContent: some View {
+        FCDowngradeSheet(
+            entitlements: entitlements,
+            onContinue: {
+                entitlements.dismissDowngradeNotice()
+                syncLiteSelection()
+                modalCoordinator.pop()
+            },
+            onPurchase: {
+                presentPaywall(.generalAccess)
+            }
+        )
+    }
+
     // MARK: - Actions
 
     private func addPage() {
+        guard entitlements.has(.multiPageEditing) else {
+            presentPaywall(.multiPageEditing)
+            return
+        }
         withAnimation(.spring(response: FCMotionToken.Spring.snappy.response, dampingFraction: FCMotionToken.Spring.snappy.dampingFraction)) {
             _ = service.createPageInSelectedSection()
         }
@@ -519,10 +730,15 @@ Happy presenting! [wave]
 
     private func saveSelectedOrAllDirtyPages() {
         if let selectedPageID = service.selectedPageID,
-           service.pageNeedsSave(selectedPageID) {
+           service.pageNeedsSave(selectedPageID),
+           entitlements.canPerform(.save, on: selectedPageID, in: service.workspace) {
             _ = service.savePageDraft(selectedPageID)
         } else {
-            service.saveAllDirtyPages()
+            let result = service.saveAllDirtyPagesRespectingAccess()
+            if !result.skippedLockedPageIDs.isEmpty {
+                dropAlertTitle = "Lite Save"
+                dropError = "Only your active Lite page was saved. Upgrade to save across all pages."
+            }
         }
     }
 
@@ -552,7 +768,19 @@ Happy presenting! [wave]
         }
     }
 
-    private func run() {
+    private func run(skipTrialOffer: Bool = false) {
+        guard ensureEntitlementsResolvedForSensitiveAction() else { return }
+        entitlements.refreshPresentationState()
+        entitlements.enforceAllowedSettings()
+        syncLiteSelection()
+        syncDowngradeRouteIfNeeded()
+
+        if !skipTrialOffer && !entitlements.hasStartedTrial && !entitlements.hasLifetimePurchase {
+            pendingTrialAction = .startSequence
+            modalCoordinator.present(.trialOffer(action: .startSequence))
+            return
+        }
+
         switch service.startAvailabilityReason {
         case .ready:
             break
@@ -578,6 +806,9 @@ Happy presenting! [wave]
         service.onOverlayDismissed = { [self] in
             isRunning = false
             service.clearReadState()
+            entitlements.refreshPresentationState()
+            entitlements.enforceAllowedSettings()
+            syncDowngradeRouteIfNeeded()
             NSApp.activate(ignoringOtherApps: true)
             NSApp.windows.first?.makeKeyAndOrderFront(nil)
         }
@@ -586,6 +817,10 @@ Happy presenting! [wave]
     }
 
     private func handlePresentationDrop(url: URL) {
+        guard entitlements.has(.pptxImport) else {
+            presentPaywall(.pptxImport)
+            return
+        }
         guard service.confirmDiscardIfNeeded() else { return }
         service.importPresentation(from: url)
     }
@@ -601,15 +836,15 @@ Happy presenting! [wave]
         launchedFromOnboarding: Bool = false,
         guidedTemplateDraft: OnboardingDraft? = nil
     ) {
-        settingsInitialTab = initialTab
-        settingsLaunchedFromOnboarding = launchedFromOnboarding
+        entitlements.enforceAllowedSettings()
         settingsGuidedTemplateDraft = guidedTemplateDraft
-        showSettings = true
+        modalCoordinator.present(.settings(initialTab: initialTab, launchedFromOnboarding: launchedFromOnboarding))
     }
 
     private func applyOnboardingDraft(_ draft: OnboardingDraft) {
         NotchSettings.shared.listeningMode = draft.listeningMode
         NotchSettings.shared.overlayMode = draft.overlayMode
+        entitlements.enforceAllowedSettings()
     }
 
     private func handleOnboardingCompletion(_ completion: OnboardingCompletion) {
@@ -656,8 +891,128 @@ Happy presenting! [wave]
     private func returnToGuidedTemplateFromSettings() {
         guard let draft = settingsGuidedTemplateDraft else { return }
         settingsGuidedTemplateDraft = nil
-        settingsLaunchedFromOnboarding = false
         startGuidedTemplate(from: draft)
+    }
+
+    private func openDraft(skipTrialOffer: Bool = false) {
+        guard ensureEntitlementsResolvedForSensitiveAction() else { return }
+        entitlements.refreshPresentationState()
+        entitlements.enforceAllowedSettings()
+        syncDowngradeRouteIfNeeded()
+
+        if !skipTrialOffer && !entitlements.hasStartedTrial && !entitlements.hasLifetimePurchase {
+            pendingTrialAction = .openDraft
+            modalCoordinator.present(.trialOffer(action: .openDraft))
+            return
+        }
+
+        modalCoordinator.present(.draft)
+    }
+
+    private func executePendingTrialAction(skipTrialOffer: Bool) {
+        let action = pendingTrialAction
+        pendingTrialAction = nil
+
+        switch action {
+        case .startSequence:
+            run(skipTrialOffer: skipTrialOffer)
+        case .openDraft:
+            openDraft(skipTrialOffer: skipTrialOffer)
+        case .none:
+            break
+        }
+    }
+
+    private func purchasePro() {
+        Task {
+            let didPurchase = await entitlements.purchaseLifetimeUnlock()
+            if didPurchase {
+                entitlements.enforceAllowedSettings()
+                dismissTopPaywallIfNeeded()
+                dismissTrialOfferIfNeeded()
+                syncDowngradeRouteIfNeeded()
+                executePendingTrialAction(skipTrialOffer: true)
+            }
+        }
+    }
+
+    private func restorePurchases() {
+        Task {
+            await entitlements.restorePurchases()
+            if entitlements.hasLifetimePurchase {
+                entitlements.enforceAllowedSettings()
+                dismissTopPaywallIfNeeded()
+                dismissTrialOfferIfNeeded()
+                syncDowngradeRouteIfNeeded()
+                executePendingTrialAction(skipTrialOffer: true)
+            }
+        }
+    }
+
+    private func presentLitePageOptions(for pageID: UUID) {
+        modalCoordinator.present(.litePageAccess(pageID: pageID))
+    }
+
+    private func activateLitePage(_ pageID: UUID) {
+        entitlements.makeLitePageActive(pageID, in: service.workspace)
+        withAnimation(.spring(response: FCMotionToken.Spring.snappy.response, dampingFraction: FCMotionToken.Spring.snappy.dampingFraction)) {
+            service.selectPage(pageID)
+        }
+    }
+
+    private func syncLiteSelection() {
+        entitlements.syncLiteUnlockedPage(with: service.workspace)
+        if entitlements.tier == .lite,
+           let liteUnlockedPageID = entitlements.liteUnlockedPageID,
+           service.selectedPageID != liteUnlockedPageID {
+            service.selectPage(liteUnlockedPageID)
+        }
+    }
+
+    private func ensureEntitlementsResolvedForSensitiveAction() -> Bool {
+        guard entitlements.hasResolvedPurchaseState else {
+            entitlements.handleAppLaunch()
+            dropAlertTitle = "Checking Pro Access"
+            dropError = "Please wait a moment while FocusCue verifies your Pro access."
+            return false
+        }
+        return true
+    }
+
+    private func presentPaywall(_ feature: FeatureGate) {
+        if let activeRoute = modalCoordinator.activeRoute,
+           case .paywall(_) = activeRoute {
+            modalCoordinator.replaceTop(with: .paywall(feature: feature))
+        } else {
+            modalCoordinator.push(.paywall(feature: feature))
+        }
+    }
+
+    private func dismissTopPaywallIfNeeded() {
+        if let activeRoute = modalCoordinator.activeRoute,
+           case .paywall(_) = activeRoute {
+            modalCoordinator.pop()
+        }
+    }
+
+    private func dismissTrialOfferIfNeeded() {
+        if let activeRoute = modalCoordinator.activeRoute,
+           case .trialOffer(_) = activeRoute {
+            modalCoordinator.pop()
+        }
+    }
+
+    private func syncDowngradeRouteIfNeeded() {
+        guard entitlements.shouldPresentDowngradeNotice else {
+            if let activeRoute = modalCoordinator.activeRoute,
+               case .downgrade = activeRoute {
+                modalCoordinator.pop()
+            }
+            return
+        }
+
+        guard modalCoordinator.activeRoute == nil else { return }
+        modalCoordinator.present(.downgrade)
     }
 }
 
@@ -682,7 +1037,7 @@ struct AboutView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text("A free, open-source teleprompter that highlights your script in real-time as you speak.")
+            Text("A camera-first macOS teleprompter that keeps your script close, calm, and ready to deliver.")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

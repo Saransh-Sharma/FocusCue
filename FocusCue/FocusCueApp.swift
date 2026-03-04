@@ -11,6 +11,9 @@ extension Notification.Name {
     static let openSettings = Notification.Name("openSettings")
     static let openAbout = Notification.Name("openAbout")
     static let openOnboarding = Notification.Name("openOnboarding")
+    static let presentPaywall = Notification.Name("presentPaywall")
+    static let dismissPaywall = Notification.Name("dismissPaywall")
+    static let restorePurchases = Notification.Name("restorePurchases")
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
@@ -31,6 +34,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.servicesProvider = FocusCueService.shared
         NSUpdateDynamicServices()
+        _ = EntitlementService.shared
+        EntitlementService.shared.handleAppLaunch()
 
         if FocusCueService.shared.launchedExternally {
             FocusCueService.shared.hideMainWindow()
@@ -149,6 +154,13 @@ struct FocusCueApp: App {
                     NotificationCenter.default.post(name: .openSettings, object: nil)
                 }
                 .keyboardShortcut(",", modifiers: .command)
+                Divider()
+                Button("Upgrade to Pro") {
+                    NotificationCenter.default.post(name: .presentPaywall, object: FeatureGate.generalAccess.rawValue)
+                }
+                Button("Restore Purchases") {
+                    NotificationCenter.default.post(name: .restorePurchases, object: nil)
+                }
             }
             CommandGroup(replacing: .newItem) {
                 Button("Open…") {
