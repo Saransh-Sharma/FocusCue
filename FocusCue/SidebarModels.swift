@@ -67,6 +67,12 @@ struct SidebarPageRowModel: Identifiable, Equatable {
     var isSelected: Bool
     var needsSave: Bool
     var saveFailed: Bool
+    var isLocked: Bool
+    var isLiteActive: Bool
+    var canRename: Bool
+    var canSave: Bool
+    var canDelete: Bool
+    var canMove: Bool
 }
 
 struct SidebarSectionModel: Identifiable, Equatable {

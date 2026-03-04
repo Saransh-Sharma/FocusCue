@@ -11,6 +11,24 @@ import CryptoKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+struct PlaybackAccessSnapshot: Equatable {
+    let tierAtStart: AccessTier
+    let allowsMultiPagePlayback: Bool
+    let allowsWordTracking: Bool
+    let allowsDeepgram: Bool
+    let allowsSmartResync: Bool
+    let allowsAutoNextPage: Bool
+    let allowsFullscreen: Bool
+    let allowsExternalDisplay: Bool
+    let startedAt: Date
+}
+
+struct SaveAllResult: Equatable {
+    let savedPageIDs: [UUID]
+    let skippedLockedPageIDs: [UUID]
+    let failedPageIDs: [UUID]
+}
+
 @Observable
 class FocusCueService: NSObject {
     static let shared = FocusCueService()
@@ -28,6 +46,7 @@ class FocusCueService: NSObject {
     private(set) var draftPageReferences: [UUID: DraftPageReference] = [:]
     private(set) var dirtyPageIDs: Set<UUID> = []
     private(set) var saveFailedPageIDs: Set<UUID> = []
+    private(set) var activePlaybackAccess: PlaybackAccessSnapshot?
 
     var currentFileURL: URL?
     private(set) var savedWorkspace: ScriptWorkspace
@@ -35,6 +54,10 @@ class FocusCueService: NSObject {
     private let workspacePersistence: WorkspacePersistence
     private let draftFileStore: DraftFileStore
     private var pendingDraftIndexSave: DispatchWorkItem?
+
+    var isPromptingSessionActive: Bool {
+        activePlaybackAccess != nil && overlayController.isShowing
+    }
 
     override init() {
         let persistence = WorkspacePersistence()
@@ -102,6 +125,7 @@ class FocusCueService: NSObject {
     }
 
     var hasNextPage: Bool {
+        guard allowsMultiPagePlaybackForCurrentSession else { return false }
         guard selectedPageModule == .liveTranscripts else { return false }
         let pages = liveSequencePages()
         guard let selectedPageID,
@@ -169,8 +193,35 @@ class FocusCueService: NSObject {
         workspace.livePages.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
 
+    func playableLiveSequencePages() -> [ScriptPage] {
+        let pages = liveSequencePages()
+        guard !pages.isEmpty else { return [] }
+
+        if allowsMultiPagePlaybackForCurrentSession {
+            return pages
+        }
+
+        let targetPageID: UUID?
+        if activePlaybackAccess != nil {
+            targetPageID = workspace.selectedPageID
+        } else {
+            EntitlementService.shared.syncLiteUnlockedPage(with: workspace)
+            targetPageID = EntitlementService.shared.liteUnlockedPageID ?? workspace.selectedPageID
+        }
+
+        guard let targetPageID,
+              let activePage = pages.first(where: { $0.id == targetPageID }) else {
+            return []
+        }
+        return [activePage]
+    }
+
     var liveSequencePageIDs: [UUID] {
-        liveSequencePages().map(\.id)
+        playableLiveSequencePages().map(\.id)
+    }
+
+    private var allowsMultiPagePlaybackForCurrentSession: Bool {
+        activePlaybackAccess?.allowsMultiPagePlayback ?? EntitlementService.shared.has(.multiPagePlayback)
     }
 
     var hasAnyLiveTranscriptContent: Bool {
@@ -233,12 +284,15 @@ class FocusCueService: NSObject {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
+        beginPromptingSessionIfNeeded()
+
         launchedExternally = true
         hideMainWindow()
 
         overlayController.show(text: trimmed, hasNextPage: hasNextPage) { [weak self] in
             self?.externalDisplayController.dismiss()
             self?.browserServer.hideContent()
+            self?.endPromptingSession()
             self?.onOverlayDismissed?()
         }
         updatePageInfo()
@@ -288,6 +342,7 @@ class FocusCueService: NSObject {
     }
 
     func advanceToNextPage() {
+        guard allowsMultiPagePlaybackForCurrentSession else { return }
         guard selectedPageModule == .liveTranscripts else { return }
         let ids = liveSequencePageIDs
         guard let selectedPageID, let current = ids.firstIndex(of: selectedPageID) else { return }
@@ -302,6 +357,7 @@ class FocusCueService: NSObject {
     }
 
     func jumpToLiveSequencePage(index: Int) {
+        guard allowsMultiPagePlaybackForCurrentSession else { return }
         let ids = liveSequencePageIDs
         guard index >= 0 && index < ids.count else { return }
         jumpToPage(pageID: ids[index])
@@ -356,10 +412,38 @@ class FocusCueService: NSObject {
         selectPage(pageID)
     }
 
+    private func beginPromptingSessionIfNeeded() {
+        guard activePlaybackAccess == nil else { return }
+
+        let entitlements = EntitlementService.shared
+        activePlaybackAccess = PlaybackAccessSnapshot(
+            tierAtStart: entitlements.tier,
+            allowsMultiPagePlayback: entitlements.has(.multiPagePlayback),
+            allowsWordTracking: entitlements.has(.wordTracking),
+            allowsDeepgram: entitlements.has(.deepgramBackend),
+            allowsSmartResync: entitlements.has(.smartResync),
+            allowsAutoNextPage: entitlements.has(.autoNextPage),
+            allowsFullscreen: entitlements.has(.fullscreenOverlay),
+            allowsExternalDisplay: entitlements.has(.externalDisplay),
+            startedAt: Date()
+        )
+        entitlements.beginProtectedSession(.playback)
+    }
+
+    private func endPromptingSession() {
+        guard activePlaybackAccess != nil else { return }
+        activePlaybackAccess = nil
+        EntitlementService.shared.endProtectedSession(.playback)
+    }
+
     // MARK: - Sidebar mutations
 
     @discardableResult
     func createPage(in module: PageModule = .liveTranscripts) -> UUID {
+        guard EntitlementService.shared.has(.multiPageEditing) else {
+            return workspace.selectedPageID ?? flattenedPageIDs().first ?? UUID()
+        }
+
         let page = makePage(text: "")
         insertPage(page, into: module, at: pageCount(in: module))
 
@@ -381,6 +465,7 @@ class FocusCueService: NSObject {
 
     @discardableResult
     func savePageDraft(_ pageID: UUID) -> Bool {
+        guard EntitlementService.shared.canPerform(.save, on: pageID, in: workspace) else { return false }
         guard let page = page(for: pageID) else { return false }
         guard let module = module(containing: pageID) else { return false }
         let digest = pageDigest(for: page)
@@ -405,21 +490,42 @@ class FocusCueService: NSObject {
         }
     }
 
-    func saveAllDirtyPages() {
+    func saveAllDirtyPagesRespectingAccess() -> SaveAllResult {
         let orderedPageIDs = flattenedPageIDs()
         let pending = orderedPageIDs.filter { pageNeedsSave($0) }
         guard !pending.isEmpty else {
             flushDraftIndexSave()
-            return
+            return SaveAllResult(savedPageIDs: [], skippedLockedPageIDs: [], failedPageIDs: [])
         }
 
+        var savedPageIDs: [UUID] = []
+        var skippedLockedPageIDs: [UUID] = []
+        var failedPageIDs: [UUID] = []
+
         for pageID in pending {
-            _ = savePageDraft(pageID)
+            guard EntitlementService.shared.canPerform(.save, on: pageID, in: workspace) else {
+                skippedLockedPageIDs.append(pageID)
+                continue
+            }
+
+            if savePageDraft(pageID) {
+                savedPageIDs.append(pageID)
+            } else {
+                failedPageIDs.append(pageID)
+            }
         }
         flushDraftIndexSave()
+
+        return SaveAllResult(
+            savedPageIDs: savedPageIDs,
+            skippedLockedPageIDs: skippedLockedPageIDs,
+            failedPageIDs: failedPageIDs
+        )
     }
 
     func renamePage(_ pageID: UUID, to title: String) {
+        guard EntitlementService.shared.canPerform(.rename, on: pageID, in: workspace) else { return }
+
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         guard updatePage(pageID: pageID, mutation: { page in
@@ -433,6 +539,7 @@ class FocusCueService: NSObject {
 
     func deletePage(_ pageID: UUID) {
         guard canDeletePages else { return }
+        guard EntitlementService.shared.canPerform(.delete, on: pageID, in: workspace) else { return }
         guard removePage(pageID) != nil else { return }
 
         if let reference = draftPageReferences.removeValue(forKey: pageID) {
@@ -460,6 +567,7 @@ class FocusCueService: NSObject {
 
     @discardableResult
     func movePageWithinModule(_ pageID: UUID, module: PageModule, toIndex: Int) -> Bool {
+        guard EntitlementService.shared.canPerform(.reorder, on: pageID, in: workspace) else { return false }
         guard let source = pageLocation(for: pageID) else { return false }
         guard source.module == module else { return false }
         let destinationCapacity = pageCount(in: module)
@@ -482,6 +590,7 @@ class FocusCueService: NSObject {
     }
 
     func movePageToArchive(_ pageID: UUID) {
+        guard EntitlementService.shared.canPerform(.moveBetweenSections, on: pageID, in: workspace) else { return }
         guard let source = pageLocation(for: pageID), source.module == .liveTranscripts else { return }
         guard let removed = removePage(pageID) else { return }
         insertPage(removed.page, into: .archive, at: workspace.archivePages.count)
@@ -490,6 +599,7 @@ class FocusCueService: NSObject {
     }
 
     func movePageToLiveTranscripts(_ pageID: UUID, toIndex: Int? = nil) {
+        guard EntitlementService.shared.canPerform(.moveBetweenSections, on: pageID, in: workspace) else { return }
         guard let source = pageLocation(for: pageID), source.module == .archive else { return }
         guard let removed = removePage(pageID) else { return }
         insertPage(removed.page, into: .liveTranscripts, at: toIndex ?? workspace.livePages.count)
@@ -503,6 +613,8 @@ class FocusCueService: NSObject {
     }
 
     func setText(_ text: String, forPageID pageID: UUID) {
+        guard EntitlementService.shared.canPerform(.editText, on: pageID, in: workspace) else { return }
+
         guard updatePage(pageID: pageID, mutation: { page in
             page.text = text
             if !page.isCustomTitle {
@@ -519,6 +631,7 @@ class FocusCueService: NSObject {
     }
 
     func startSelectedLivePage() {
+        EntitlementService.shared.refreshPresentationState()
         guard startAvailabilityReason == .ready else { return }
         clearReadState()
         readCurrentPage()
@@ -527,7 +640,7 @@ class FocusCueService: NSObject {
     // MARK: - Overlay metadata
 
     func updatePageInfo() {
-        let pages = liveSequencePages()
+        let pages = playableLiveSequencePages()
         let content = overlayController.overlayContent
 
         content.pageCount = pages.count
@@ -650,6 +763,10 @@ class FocusCueService: NSObject {
     }
 
     func importPresentation(from url: URL) {
+        guard EntitlementService.shared.has(.pptxImport) else {
+            NotificationCenter.default.post(name: .presentPaywall, object: FeatureGate.pptxImport.rawValue)
+            return
+        }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             do {
                 let notes = try PresentationNotesExtractor.extractNotes(from: url)
@@ -691,7 +808,7 @@ class FocusCueService: NSObject {
 
         switch alert.runModal() {
         case .alertFirstButtonReturn:
-            saveAllDirtyPages()
+            _ = saveAllDirtyPagesRespectingAccess()
             return !hasDirtyDraftPages
         case .alertSecondButtonReturn:
             return true
@@ -703,6 +820,13 @@ class FocusCueService: NSObject {
     // MARK: - Browser server
 
     func updateBrowserServer() {
+        guard EntitlementService.shared.has(.browserRemote) else {
+            if browserServer.isRunning {
+                browserServer.stop()
+            }
+            return
+        }
+
         if NotchSettings.shared.browserServerEnabled {
             if !browserServer.isRunning {
                 browserServer.start()
@@ -835,13 +959,15 @@ class FocusCueService: NSObject {
 
         let validPageIDs = Set(flattenedPageIDs())
         readPageIDs = readPageIDs.intersection(validPageIDs)
+        EntitlementService.shared.syncLiteUnlockedPage(with: workspace)
 
         if let selected = workspace.selectedPageID,
-           flattenedPageIDs().contains(selected) {
+           flattenedPageIDs().contains(selected),
+           (EntitlementService.shared.has(.multiPageEditing) || EntitlementService.shared.canPerform(.editText, on: selected, in: workspace)) {
             return
         }
 
-        workspace.selectedPageID = flattenedPageIDs().first
+        workspace.selectedPageID = EntitlementService.shared.liteUnlockedPageID ?? flattenedPageIDs().first
     }
 
     private func workspaceForDirtyCheck(_ workspace: ScriptWorkspace) -> ScriptWorkspace {
@@ -851,8 +977,10 @@ class FocusCueService: NSObject {
     }
 
     private func makeSidebarRows(from pages: [ScriptPage], module: PageModule) -> [SidebarPageRowModel] {
-        pages.enumerated().map { (offset, page) in
-            SidebarPageRowModel(
+        let entitlements = EntitlementService.shared
+        return pages.enumerated().map { (offset, page) in
+            let canEdit = entitlements.canPerform(.editText, on: page.id, in: workspace)
+            return SidebarPageRowModel(
                 id: page.id,
                 module: module,
                 localIndex: offset + 1,
@@ -862,7 +990,13 @@ class FocusCueService: NSObject {
                 isRead: readPageIDs.contains(page.id),
                 isSelected: workspace.selectedPageID == page.id,
                 needsSave: dirtyPageIDs.contains(page.id),
-                saveFailed: saveFailedPageIDs.contains(page.id)
+                saveFailed: saveFailedPageIDs.contains(page.id),
+                isLocked: !canEdit,
+                isLiteActive: entitlements.tier == .lite && entitlements.liteUnlockedPageID == page.id,
+                canRename: entitlements.canPerform(.rename, on: page.id, in: workspace),
+                canSave: entitlements.canPerform(.save, on: page.id, in: workspace),
+                canDelete: canDeletePages && entitlements.canPerform(.delete, on: page.id, in: workspace),
+                canMove: entitlements.canPerform(.reorder, on: page.id, in: workspace)
             )
         }
     }
