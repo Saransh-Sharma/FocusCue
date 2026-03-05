@@ -347,9 +347,9 @@ struct SettingsView: View {
         initialTab: SettingsTab = .display,
         launchedFromOnboarding: Bool = false,
         onReturnToGuidedTemplate: (() -> Void)? = nil,
-        onUpgrade: @escaping () -> Void = {},
-        onRestorePurchases: @escaping () -> Void = {},
-        onBlockedFeature: @escaping (FeatureGate) -> Void = { _ in }
+        onUpgrade: @escaping () -> Void,
+        onRestorePurchases: @escaping () -> Void,
+        onBlockedFeature: @escaping (FeatureGate) -> Void
     ) {
         self.settings = settings
         self.launchedFromOnboarding = launchedFromOnboarding

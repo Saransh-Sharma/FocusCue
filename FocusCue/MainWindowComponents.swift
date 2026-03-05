@@ -617,16 +617,16 @@ struct FCActionBar: View {
                         settings.listeningMode = mode
                     }
                 } label: {
-                    HStack(spacing: 5) {
+                    HStack(spacing: FCSpacingToken.s4.rawValue) {
                         Text(mode.label)
                             .lineLimit(1)
                         if isLocked {
                             Image(systemName: "lock.fill")
-                                .font(.system(size: 10, weight: .semibold))
+                                .font(FCTypographyToken.caption.font)
                         }
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, FCSpacingToken.s8.rawValue)
                     .foregroundStyle(
                         isSelected
                         ? Color.white
@@ -644,7 +644,7 @@ struct FCActionBar: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(4)
+        .padding(FCSpacingToken.s4.rawValue)
         .background(
             RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
                 .fill(theme.color(.surfaceGlassStrong).opacity(0.7))

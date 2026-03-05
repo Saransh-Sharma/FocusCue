@@ -81,20 +81,20 @@ struct VerifiedPurchaseRecord: Equatable {
 }
 
 protocol PurchaseEntitlementProviding {
-    func currentEntitlements() async -> [VerifiedPurchaseRecord]
-    func sync() async throws
+    nonisolated func currentEntitlements() async -> [VerifiedPurchaseRecord]
+    nonisolated func sync() async throws
 }
 
 protocol DateProviding {
-    var now: Date { get }
+    nonisolated var now: Date { get }
 }
 
 struct SystemDateProvider: DateProviding {
-    var now: Date { Date() }
+    nonisolated var now: Date { Date() }
 }
 
 struct StoreKitPurchaseEntitlementProvider: PurchaseEntitlementProviding {
-    func currentEntitlements() async -> [VerifiedPurchaseRecord] {
+    nonisolated func currentEntitlements() async -> [VerifiedPurchaseRecord] {
         var records: [VerifiedPurchaseRecord] = []
         for await result in Transaction.currentEntitlements {
             guard case .verified(let transaction) = result else { continue }
@@ -108,7 +108,7 @@ struct StoreKitPurchaseEntitlementProvider: PurchaseEntitlementProviding {
         return records
     }
 
-    func sync() async throws {
+    nonisolated func sync() async throws {
         try await AppStore.sync()
     }
 }
@@ -129,9 +129,13 @@ enum StoreProductIDs {
     static let lifetimeProUnlock = "com.saransh1337.focuscue.pro.lifetime.teleprompter"
 }
 
+@MainActor
 @Observable
 final class EntitlementService {
-    static let shared = EntitlementService()
+    static let shared = EntitlementService(
+        purchaseProvider: StoreKitPurchaseEntitlementProvider(),
+        dateProvider: SystemDateProvider()
+    )
 
     let lifetimeProductID = StoreProductIDs.lifetimeProUnlock
 
@@ -184,8 +188,8 @@ final class EntitlementService {
     private var hasStartedBootstrap = false
 
     init(
-        purchaseProvider: PurchaseEntitlementProviding = StoreKitPurchaseEntitlementProvider(),
-        dateProvider: DateProviding = SystemDateProvider(),
+        purchaseProvider: PurchaseEntitlementProviding,
+        dateProvider: DateProviding,
         startObservingTransactions: Bool = true
     ) {
         self.purchaseProvider = purchaseProvider
@@ -209,6 +213,7 @@ final class EntitlementService {
         }
     }
 
+    @MainActor
     deinit {
         transactionUpdatesTask?.cancel()
     }
@@ -370,7 +375,7 @@ final class EntitlementService {
     }
 
     func decision(for feature: FeatureGate) -> AccessDecision {
-        guard hasResolvedPurchaseState else { return .allowed }
+        guard hasResolvedPurchaseState else { return .blocked(feature) }
         if hasProAccess {
             return .allowed
         }
@@ -494,7 +499,7 @@ final class EntitlementService {
     }
 
     func canPerform(_ operation: PageOperation, on pageID: UUID?, in workspace: ScriptWorkspace) -> Bool {
-        guard hasResolvedPurchaseState else { return true }
+        guard hasResolvedPurchaseState else { return false }
         guard let pageID else { return false }
 
         let validPageIDs = Set((workspace.livePages + workspace.archivePages).map(\.id))

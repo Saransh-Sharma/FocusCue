@@ -66,6 +66,7 @@ enum OnboardingPermissionKind: String, Hashable {
 enum OnboardingExitReason: Equatable {
     case skippedForNow
     case continueInSettings
+    case continueInLite
     case launchGuidedTemplate
     case upgradeToPro
 }
@@ -306,12 +307,19 @@ struct OnboardingWizardView: View {
             SettingsView(
                 settings: NotchSettings.shared,
                 initialTab: detourSettingsTab,
-                launchedFromOnboarding: true
+                launchedFromOnboarding: true,
+                onUpgrade: { openUpgradeFromReadyStep() },
+                onRestorePurchases: { restorePurchasesFromSettings() },
+                onBlockedFeature: { _ in openUpgradeFromReadyStep() }
             )
         }
         .onAppear {
             permissions.refresh()
-            entitlements.handleAppLaunch()
+            if entitlements.hasResolvedPurchaseState {
+                entitlements.refreshPresentationState()
+            } else {
+                entitlements.handleAppLaunch()
+            }
             session.persistLastVisitedStep()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -1023,8 +1031,10 @@ struct OnboardingWizardView: View {
         switch readyStepEntitlementState {
         case .eligibleForTrial:
             launchGuidedTemplate(shouldStartTrial: true)
-        case .trialActive, .pro, .trialExpired:
+        case .trialActive, .pro:
             launchGuidedTemplate(shouldStartTrial: false)
+        case .trialExpired:
+            continueInLite()
         }
     }
 
@@ -1134,6 +1144,21 @@ struct OnboardingWizardView: View {
         )
     }
 
+    private func continueInLite() {
+        finish(
+            OnboardingCompletion(
+                draft: draft,
+                applyDraft: true,
+                shouldStartTrial: false,
+                shouldPresentUpgrade: false,
+                launchGuidedTemplate: false,
+                openedSettingsTab: nil,
+                completionReason: .continueInLite,
+                markOnboardingComplete: true
+            )
+        )
+    }
+
     private func launchGuidedTemplate(shouldStartTrial: Bool = false) {
         session.hasLaunchedGuidedTemplate = true
         finish(
@@ -1163,6 +1188,13 @@ struct OnboardingWizardView: View {
                 markOnboardingComplete: true
             )
         )
+    }
+
+    private func restorePurchasesFromSettings() {
+        Task {
+            await entitlements.restorePurchases()
+            entitlements.refreshPresentationState()
+        }
     }
 
     private func presentSettingsDetour(tab: SettingsTab) {

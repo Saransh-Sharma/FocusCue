@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var pendingDeletePageID: UUID?
     @State private var pendingTrialAction: TrialEntryAction?
     @State private var modalCoordinator = AppModalCoordinator()
+    @State private var commandCoordinator = AppCommandCoordinator.shared
 
     @AppStorage(FocusCueOnboardingStorage.completedKey) private var onboardingCompleted = false
     @AppStorage(FocusCueOnboardingStorage.versionKey) private var onboardingVersion = 0
@@ -71,212 +72,245 @@ Happy presenting! [wave]
         return .welcome
     }
 
+    private var currentTheme: FCTheme {
+        FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+    }
+
     var body: some View {
-        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+        let theme = currentTheme
+        lifecycleSubscriptions(
+            modalAndDialogs(
+                mainLayout(theme: theme),
+                theme: theme
+            )
+        )
+    }
 
+    private func mainLayout(theme: FCTheme) -> some View {
         GeometryReader { proxy in
-            let isCompactLayout = proxy.size.width < 920
-            let contentPadding = FCSpacingToken.s16.rawValue
-            let mainStackSpacing = FCSpacingToken.s12.rawValue
-            let columnSpacing = FCSpacingToken.s12.rawValue
-            let sidebarWidth: CGFloat = 220
-            let editorMinHeight: CGFloat = 220
+            mainLayout(theme: theme, isCompactLayout: proxy.size.width < 920)
+        }
+    }
 
-            ZStack {
-                FCWindowBackdrop()
+    @ViewBuilder
+    private func mainLayout(theme: FCTheme, isCompactLayout: Bool) -> some View {
+        let contentPadding = FCSpacingToken.s16.rawValue
+        let mainStackSpacing = FCSpacingToken.s12.rawValue
+        let columnSpacing = FCSpacingToken.s12.rawValue
+        let sidebarWidth: CGFloat = 220
+        let editorMinHeight: CGFloat = 220
 
-                VStack(alignment: .leading, spacing: mainStackSpacing) {
-                    FCWindowHeader(
-                        subtitle: "Stay on script. Stay on camera. Stay natural.",
-                        brandState: entitlements.brandState,
-                        compact: isCompactLayout
+        ZStack {
+            FCWindowBackdrop()
+
+            VStack(alignment: .leading, spacing: mainStackSpacing) {
+                FCWindowHeader(
+                    subtitle: "Stay on script. Stay on camera. Stay natural.",
+                    brandState: entitlements.brandState,
+                    compact: isCompactLayout
+                )
+
+                if entitlements.tier != .pro {
+                    FCEntitlementStatusCard(
+                        entitlements: entitlements,
+                        onUpgrade: { presentPaywall(.generalAccess) },
+                        onRestore: { restorePurchases() }
                     )
+                }
 
-                    if entitlements.tier != .pro {
-                        FCEntitlementStatusCard(
-                            entitlements: entitlements,
-                            onUpgrade: { presentPaywall(.generalAccess) },
-                            onRestore: { restorePurchases() }
-                        )
+                if isCompactLayout {
+                    VStack(alignment: .leading, spacing: mainStackSpacing) {
+                        pageRailView(theme: theme, width: sidebarWidth)
+                        editorPanel(theme: theme, minHeight: editorMinHeight)
+                        actionBarView(theme: theme)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                } else {
+                    HStack(alignment: .top, spacing: columnSpacing) {
+                        pageRailView(theme: theme, width: sidebarWidth)
 
-                    if isCompactLayout {
-                        VStack(alignment: .leading, spacing: mainStackSpacing) {
-                            pageRailView(theme: theme, width: sidebarWidth)
+                        VStack(spacing: mainStackSpacing) {
                             editorPanel(theme: theme, minHeight: editorMinHeight)
                             actionBarView(theme: theme)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    } else {
-                        HStack(alignment: .top, spacing: columnSpacing) {
-                            pageRailView(theme: theme, width: sidebarWidth)
-
-                            VStack(spacing: mainStackSpacing) {
-                                editorPanel(theme: theme, minHeight: editorMinHeight)
-                                actionBarView(theme: theme)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
-                .padding(contentPadding)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .opacity(revealMainWindow ? 1 : 0)
-                .offset(y: revealMainWindow ? 0 : (reduceMotion ? 0 : 12))
-                .animation(theme.animation(.emphasized, curve: .enter), value: revealMainWindow)
-
-                if isDroppingPresentation {
-                    FCDropZoneOverlay()
-                        .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
-                }
-
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onDrop(of: [.fileURL], isTargeted: $isDroppingPresentation) { providers in
-                    guard let provider = providers.first else { return false }
-                    _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                        guard let url else { return }
-                        let ext = url.pathExtension.lowercased()
-                        if ext == "key" {
-                            DispatchQueue.main.async {
-                                dropAlertTitle = "Conversion Required"
-                                dropError = "Keynote files can't be imported directly. Please export your Keynote presentation as PowerPoint (.pptx) first, then drop the exported file here."
-                            }
-                            return
-                        }
-                        guard ext == "pptx" else {
-                            DispatchQueue.main.async {
-                                dropAlertTitle = "Import Error"
-                                dropError = "Unsupported file. Drop a PowerPoint (.pptx) file."
-                            }
-                            return
-                        }
-                        DispatchQueue.main.async {
-                            handlePresentationDrop(url: url)
-                        }
-                    }
-                    return true
-                }
-                    .allowsHitTesting(isDroppingPresentation)
             }
+            .padding(contentPadding)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .opacity(revealMainWindow ? 1 : 0)
+            .offset(y: revealMainWindow ? 0 : (reduceMotion ? 0 : 12))
+            .animation(theme.animation(.emphasized, curve: .enter), value: revealMainWindow)
+
+            dropZoneOverlay()
         }
-        .alert(dropAlertTitle, isPresented: Binding(get: { dropError != nil }, set: { if !$0 { dropError = nil } })) {
+    }
+
+    @ViewBuilder
+    private func dropZoneOverlay() -> some View {
+        if isDroppingPresentation {
+            FCDropZoneOverlay()
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
+        }
+
+        Color.clear
+            .contentShape(Rectangle())
+            .onDrop(of: [.fileURL], isTargeted: $isDroppingPresentation) { providers in
+                guard let provider = providers.first else { return false }
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                    guard let url else { return }
+                    let ext = url.pathExtension.lowercased()
+                    if ext == "key" {
+                        DispatchQueue.main.async {
+                            dropAlertTitle = "Conversion Required"
+                            dropError = "Keynote files can't be imported directly. Please export your Keynote presentation as PowerPoint (.pptx) first, then drop the exported file here."
+                        }
+                        return
+                    }
+                    guard ext == "pptx" else {
+                        DispatchQueue.main.async {
+                            dropAlertTitle = "Import Error"
+                            dropError = "Unsupported file. Drop a PowerPoint (.pptx) file."
+                        }
+                        return
+                    }
+                    DispatchQueue.main.async {
+                        handlePresentationDrop(url: url)
+                    }
+                }
+                return true
+            }
+            .allowsHitTesting(isDroppingPresentation)
+    }
+
+    private func modalAndDialogs<Content: View>(_ content: Content, theme: FCTheme) -> some View {
+        content
+            .alert(dropAlertTitle, isPresented: Binding(get: { dropError != nil }, set: { if !$0 { dropError = nil } })) {
             Button("OK") { dropError = nil }
         } message: {
             Text(dropError ?? "")
         }
-        .confirmationDialog(
-            "Delete this page?",
-            isPresented: $showDeletePageConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Delete Page", role: .destructive) {
-                guard let pageID = pendingDeletePageID else { return }
-                guard entitlements.canPerform(.delete, on: pageID, in: service.workspace) else {
+            .confirmationDialog(
+                "Delete this page?",
+                isPresented: $showDeletePageConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete Page", role: .destructive) {
+                    guard let pageID = pendingDeletePageID else { return }
+                    guard entitlements.canPerform(.delete, on: pageID, in: service.workspace) else {
+                        pendingDeletePageID = nil
+                        presentPaywall(.multiPageEditing)
+                        return
+                    }
+                    withAnimation(theme.spring(.snappy)) {
+                        service.deletePage(pageID)
+                    }
                     pendingDeletePageID = nil
-                    presentPaywall(.multiPageEditing)
-                    return
                 }
-                withAnimation(theme.spring(.snappy)) {
-                    service.deletePage(pageID)
+                Button("Cancel", role: .cancel) {
+                    pendingDeletePageID = nil
                 }
-                pendingDeletePageID = nil
+            } message: {
+                if let pageID = pendingDeletePageID {
+                    let title = service.pageTitle(for: pageID)
+                    Text("Delete \"\(title)\" permanently? This removes the page from FocusCue. If a draft file exists, it will be moved to Trash.")
+                }
             }
-            Button("Cancel", role: .cancel) {
-                pendingDeletePageID = nil
+            .frame(minWidth: 920, minHeight: 540)
+            .sheet(
+                isPresented: Binding(
+                    get: { modalCoordinator.activeRoute != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            modalCoordinator.clear()
+                        }
+                    }
+                )
+            ) {
+                modalSheetContent
             }
-        } message: {
-            if let pageID = pendingDeletePageID {
-                let title = service.pageTitle(for: pageID)
-                Text("Delete \"\(title)\" permanently? This removes the page from FocusCue. If a draft file exists, it will be moved to Trash.")
+            .sheet(isPresented: $showOnboarding) {
+                OnboardingWizardView(
+                    initialStep: onboardingInitialStep,
+                    entryContext: onboardingEntryContext
+                ) { completion in
+                    handleOnboardingCompletion(completion)
+                }
+                .frame(width: 640, height: 540)
             }
-        }
-        .frame(minWidth: 920, minHeight: 540)
-        .sheet(
-            isPresented: Binding(
-                get: { modalCoordinator.activeRoute != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        modalCoordinator.clear()
+    }
+
+    private func lifecycleSubscriptions<Content: View>(_ content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { _ in
+                presentSettings()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .openAbout)) { _ in
+                modalCoordinator.present(.about)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .openOnboarding)) { _ in
+                settingsGuidedTemplateDraft = nil
+                onboardingInitialStep = .welcome
+                onboardingEntryContext = .manual
+                showOnboarding = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .presentPaywall)) { notification in
+                let rawValue = notification.object as? String
+                presentPaywall(rawValue.flatMap(FeatureGate.init(rawValue:)) ?? .generalAccess)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .dismissPaywall)) { _ in
+                dismissTopPaywallIfNeeded()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .restorePurchases)) { _ in
+                restorePurchases()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                isRunning = service.overlayController.isShowing
+                entitlements.refreshPresentationState()
+                entitlements.enforceAllowedSettings()
+                syncLiteSelection()
+                syncDowngradeRouteIfNeeded()
+            }
+            .onAppear {
+                entitlements.handleAppLaunch()
+                processPendingCommands()
+                syncLiteSelection()
+                syncDowngradeRouteIfNeeded()
+                if !service.restoredWorkspaceFromAutosave && service.totalPageCount == 1 && service.currentPageText.isEmpty {
+                    service.setTextForSelectedPage(defaultText)
+                }
+
+                if service.overlayController.isShowing {
+                    isRunning = true
+                }
+
+                if FocusCueService.shared.launchedExternally {
+                    DispatchQueue.main.async {
+                        for window in NSApp.windows where !(window is NSPanel) {
+                            window.orderOut(nil)
+                        }
+                    }
+                } else {
+                    isTextFocused = true
+                    if shouldPresentOnboardingOnLaunch {
+                        onboardingInitialStep = resolvedLaunchOnboardingStep
+                        onboardingEntryContext = .firstRun
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            showOnboarding = true
+                        }
                     }
                 }
-            )
-        ) {
-            modalSheetContent
-        }
-        .sheet(isPresented: $showOnboarding) {
-            OnboardingWizardView(
-                initialStep: onboardingInitialStep,
-                entryContext: onboardingEntryContext
-            ) { completion in
-                handleOnboardingCompletion(completion)
-            }
-            .frame(width: 640, height: 540)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { _ in
-            presentSettings()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .openAbout)) { _ in
-            modalCoordinator.present(.about)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .openOnboarding)) { _ in
-            settingsGuidedTemplateDraft = nil
-            onboardingInitialStep = .welcome
-            onboardingEntryContext = .manual
-            showOnboarding = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .presentPaywall)) { notification in
-            let rawValue = notification.object as? String
-            presentPaywall(rawValue.flatMap(FeatureGate.init(rawValue:)) ?? .generalAccess)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .dismissPaywall)) { _ in
-            dismissTopPaywallIfNeeded()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .restorePurchases)) { _ in
-            restorePurchases()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            isRunning = service.overlayController.isShowing
-            entitlements.refreshPresentationState()
-            entitlements.enforceAllowedSettings()
-            syncLiteSelection()
-            syncDowngradeRouteIfNeeded()
-        }
-        .onAppear {
-            entitlements.handleAppLaunch()
-            syncLiteSelection()
-            syncDowngradeRouteIfNeeded()
-            if !service.restoredWorkspaceFromAutosave && service.totalPageCount == 1 && service.currentPageText.isEmpty {
-                service.setTextForSelectedPage(defaultText)
-            }
 
-            if service.overlayController.isShowing {
-                isRunning = true
+                revealMainWindow = true
             }
-
-            if FocusCueService.shared.launchedExternally {
-                DispatchQueue.main.async {
-                    for window in NSApp.windows where !(window is NSPanel) {
-                        window.orderOut(nil)
-                    }
-                }
-            } else {
-                isTextFocused = true
-                if shouldPresentOnboardingOnLaunch {
-                    onboardingInitialStep = resolvedLaunchOnboardingStep
-                    onboardingEntryContext = .firstRun
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        showOnboarding = true
-                    }
-                }
+            .onChange(of: service.selectedPageID) { _, _ in
+                syncLiteSelection()
             }
-
-            revealMainWindow = true
-        }
-        .onChange(of: service.selectedPageID) { _, _ in
-            syncLiteSelection()
-        }
+            .onChange(of: commandCoordinator.enqueueCount) { _, _ in
+                processPendingCommands()
+            }
     }
 
     // MARK: - Main Window Subviews
@@ -737,7 +771,7 @@ Happy presenting! [wave]
             presentPaywall(.multiPageEditing)
             return
         }
-        withAnimation(.spring(response: FCMotionToken.Spring.snappy.response, dampingFraction: FCMotionToken.Spring.snappy.dampingFraction)) {
+        withAnimation(currentTheme.spring(.snappy)) {
             _ = service.createPageInSelectedSection()
         }
     }
@@ -989,6 +1023,18 @@ Happy presenting! [wave]
         }
     }
 
+    private func processPendingCommands() {
+        let commands = commandCoordinator.drainCommands()
+        for command in commands {
+            switch command {
+            case .presentPaywall(let feature):
+                presentPaywall(feature)
+            case .restorePurchases:
+                restorePurchases()
+            }
+        }
+    }
+
     private func applyPostProUnlockExperience(source: ProUnlockSource) {
         entitlements.enforceAllowedSettings()
         NotchSettings.shared.listeningMode = .wordTracking
@@ -1002,7 +1048,7 @@ Happy presenting! [wave]
 
     private func activateLitePage(_ pageID: UUID) {
         entitlements.makeLitePageActive(pageID, in: service.workspace)
-        withAnimation(.spring(response: FCMotionToken.Spring.snappy.response, dampingFraction: FCMotionToken.Spring.snappy.dampingFraction)) {
+        withAnimation(currentTheme.spring(.snappy)) {
             service.selectPage(pageID)
         }
     }

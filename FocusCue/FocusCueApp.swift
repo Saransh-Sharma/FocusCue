@@ -156,10 +156,10 @@ struct FocusCueApp: App {
                 .keyboardShortcut(",", modifiers: .command)
                 Divider()
                 Button("Upgrade to Pro") {
-                    NotificationCenter.default.post(name: .presentPaywall, object: FeatureGate.generalAccess.rawValue)
+                    AppCommandCoordinator.shared.enqueuePresentPaywall(feature: .generalAccess)
                 }
                 Button("Restore Purchases") {
-                    NotificationCenter.default.post(name: .restorePurchases, object: nil)
+                    AppCommandCoordinator.shared.enqueueRestorePurchases()
                 }
             }
             CommandGroup(replacing: .newItem) {
