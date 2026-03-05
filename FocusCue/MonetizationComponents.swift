@@ -12,27 +12,27 @@ extension FeatureGate {
         case .generalAccess:
             return "Unlock FocusCue Pro"
         case .multiPageEditing:
-            return "Unlimited Scripts Are Pro"
+            return "Unlock Unlimited Scripts"
         case .multiPagePlayback:
-            return "Multi-Page Playback Is Pro"
+            return "Unlock Multi-Page Playback"
         case .autoNextPage:
-            return "Auto Next Page Is Pro"
+            return "Unlock Auto Page Turns"
         case .wordTracking:
-            return "Word Tracking Is Pro"
+            return "Unlock Word Tracking"
         case .deepgramBackend:
-            return "Deepgram Is Pro"
+            return "Unlock Cloud Recognition"
         case .smartResync:
-            return "Smart Resync Is Pro"
+            return "Unlock Smart Resync"
         case .aiRefinement:
-            return "AI Refinement Is Pro"
+            return "Unlock AI Refinement"
         case .pptxImport:
-            return "PPTX Import Is Pro"
+            return "Unlock PPTX Import"
         case .fullscreenOverlay:
-            return "Fullscreen Mode Is Pro"
+            return "Unlock Fullscreen Mode"
         case .externalDisplay:
-            return "External Output Is Pro"
+            return "Unlock External Output"
         case .browserRemote:
-            return "Remote Browser Output Is Pro"
+            return "Unlock Browser Remote"
         }
     }
 
@@ -159,7 +159,7 @@ struct FCTierBadge: View {
         case .lite:
             return .stateWarning
         case .proTrial:
-            return .accentCTA
+            return .accentPrimary
         case .pro:
             return .stateSuccess
         }
@@ -199,7 +199,7 @@ struct FCEntitlementStatusCard: View {
         case .lite:
             return .stateWarning
         case .proTrial:
-            return .accentCTA
+            return .accentPrimary
         case .pro:
             return .stateSuccess
         }
@@ -224,16 +224,35 @@ struct FCEntitlementStatusCard: View {
                 }
 
                 if entitlements.tier == .trial {
-                    GeometryReader { proxy in
-                        ZStack(alignment: .leading) {
-                            Capsule(style: .continuous)
-                                .fill(theme.color(.accentCTA).opacity(0.14))
-                            Capsule(style: .continuous)
-                                .fill(theme.color(.accentCTA))
-                                .frame(width: max(18, proxy.size.width * CGFloat(Double(entitlements.daysUsed) / 14.0)))
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
+                        GeometryReader { proxy in
+                            let progress = CGFloat(Double(entitlements.daysUsed) / 14.0)
+                            ZStack(alignment: .leading) {
+                                Capsule(style: .continuous)
+                                    .fill(theme.color(.accentPrimary).opacity(0.12))
+                                Capsule(style: .continuous)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [theme.color(.accentPrimary), theme.color(.accentInfo)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .frame(width: max(18, proxy.size.width * progress))
+                            }
+                        }
+                        .frame(height: 8)
+
+                        HStack {
+                            Text("\(entitlements.daysUsed) of 14 days used")
+                                .foregroundStyle(theme.color(.textTertiary))
+                                .fcTypography(.caption)
+                            Spacer()
+                            Text("\(entitlements.daysRemaining) remaining")
+                                .foregroundStyle(theme.color(.accentPrimary))
+                                .fcTypography(.caption)
                         }
                     }
-                    .frame(height: 8)
                 }
 
                 Text(entitlements.statusFootnote)
@@ -243,19 +262,50 @@ struct FCEntitlementStatusCard: View {
                 HStack(spacing: FCSpacingToken.s8.rawValue) {
                     if entitlements.tier != .pro {
                         Button(action: onUpgrade) {
-                            Text("Upgrade to Pro")
-                                .frame(maxWidth: .infinity)
+                            HStack(spacing: FCSpacingToken.s8.rawValue) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 12, weight: .semibold))
+                                Text("Upgrade to Pro")
+                                    .fcTypography(.label)
+                            }
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity, minHeight: 36)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                theme.color(.accentPrimary).opacity(0.90),
+                                                theme.color(.accentInfo),
+                                            ],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                            )
+                            .overlay(
+                                Capsule(style: .continuous)
+                                    .stroke(Color.white.opacity(0.18), lineWidth: FCStrokeToken.thin.rawValue)
+                            )
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
+                        .buttonStyle(.plain)
                     }
 
                     Button(action: onRestore) {
                         Text("Restore Purchases")
-                            .frame(maxWidth: .infinity)
+                            .fcTypography(.label)
+                            .foregroundStyle(theme.color(.textSecondary))
+                            .frame(maxWidth: .infinity, minHeight: 36)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(theme.color(.surfaceGlass))
+                            )
+                            .overlay(
+                                Capsule(style: .continuous)
+                                    .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+                            )
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -273,71 +323,146 @@ struct FCPaywallSheet: View {
     let onRestore: () -> Void
     let onDismiss: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+
+        VStack(alignment: .leading, spacing: FCSpacingToken.s20.rawValue) {
+            HStack(spacing: FCSpacingToken.s12.rawValue) {
+                FCBrandIconView(size: 36, cornerRadius: FCShapeToken.radius10.rawValue, shadowRadius: 6)
+                VStack(alignment: .leading, spacing: 2) {
                     Text(feature.paywallTitle)
-                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(theme.color(.textPrimary))
+                        .fcTypography(.titleM)
                     Text(feature.paywallBody)
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .fcTypography(.bodyM)
                 }
                 Spacer()
                 FCTierBadge(brandState: entitlements.brandState)
             }
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
                 ForEach(feature.paywallBullets, id: \.self) { bullet in
-                    HStack(alignment: .top, spacing: 8) {
+                    HStack(alignment: .top, spacing: FCSpacingToken.s8.rawValue) {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(theme.color(.stateSuccess))
                         Text(bullet)
-                            .font(.system(size: 13))
+                            .foregroundStyle(theme.color(.textPrimary))
+                            .fcTypography(.label)
                     }
                 }
             }
-            .padding(14)
-            .background(Color.primary.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(FCSpacingToken.s16.rawValue)
+            .background(
+                RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                    .fill(theme.color(.surfaceGlass))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                    .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+            )
 
             if let proProduct = entitlements.proProduct {
-                Text("Lifetime unlock: \(proProduct.displayPrice)")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                HStack(spacing: FCSpacingToken.s8.rawValue) {
+                    Text("One-time purchase")
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .fcTypography(.caption)
+                    Text(proProduct.displayPrice)
+                        .foregroundStyle(theme.color(.textPrimary))
+                        .fcTypography(.heading)
+                }
+                .padding(.horizontal, FCSpacingToken.s16.rawValue)
+                .padding(.vertical, FCSpacingToken.s12.rawValue)
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
+                        .fill(theme.color(.stateSuccess).opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
+                        .stroke(theme.color(.stateSuccess).opacity(0.20), lineWidth: FCStrokeToken.thin.rawValue)
+                )
             }
 
             if let storeErrorMessage = entitlements.storeErrorMessage, !storeErrorMessage.isEmpty {
                 Text(storeErrorMessage)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.orange)
+                    .fcTypography(.caption)
+                    .foregroundStyle(theme.color(.stateError))
             }
 
-            HStack(spacing: 12) {
-                Button("Not now") {
-                    onDismiss()
+            HStack(spacing: FCSpacingToken.s12.rawValue) {
+                Button(action: onDismiss) {
+                    Text("Maybe later")
+                        .fcTypography(.label)
+                        .foregroundStyle(theme.color(.textTertiary))
                 }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
+                .buttonStyle(.plain)
 
                 Spacer()
 
-                Button("Restore Purchases") {
-                    onRestore()
+                Button(action: onRestore) {
+                    Text("Restore Purchases")
+                        .fcTypography(.label)
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .padding(.horizontal, FCSpacingToken.s16.rawValue)
+                        .padding(.vertical, FCSpacingToken.s12.rawValue)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(theme.color(.surfaceGlass))
+                        )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+                        )
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
                 .disabled(entitlements.isRestoring || entitlements.isPurchasing)
 
-                Button(entitlements.isPurchasing ? "Purchasing…" : "Unlock Pro") {
-                    onPurchase()
+                Button(action: onPurchase) {
+                    HStack(spacing: FCSpacingToken.s8.rawValue) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(entitlements.isPurchasing ? "Purchasing\u{2026}" : "Unlock Pro")
+                            .fcTypography(.label)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, FCSpacingToken.s20.rawValue)
+                    .padding(.vertical, FCSpacingToken.s12.rawValue)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        theme.color(.accentPrimary).opacity(0.90),
+                                        theme.color(.accentInfo),
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(Color.white.opacity(0.20), lineWidth: FCStrokeToken.thin.rawValue)
+                    )
+                    .shadow(
+                        color: theme.color(.accentPrimary).opacity(FCEffectToken.shadowSoft.opacity),
+                        radius: FCEffectToken.shadowSoft.blur,
+                        y: FCEffectToken.shadowSoft.yOffset
+                    )
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.plain)
                 .disabled(entitlements.isRestoring || entitlements.isPurchasing)
             }
         }
-        .padding(24)
-        .frame(width: 500)
-        .background(.regularMaterial)
+        .padding(FCSpacingToken.s24.rawValue)
+        .frame(width: 520)
+        .background(theme.material(.sheet))
+        .background(theme.color(.surfaceGlassStrong).opacity(0.92))
     }
 }
 
@@ -347,53 +472,254 @@ struct FCTrialOfferSheet: View {
     let onPurchase: () -> Void
     let onSkip: () -> Void
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("Start your 14-day Pro trial")
-                .font(.system(size: 24, weight: .bold))
-            Text("You’ll get full access to every Pro workflow for 14 days. After that, FocusCue stays usable in Lite with one active page.")
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-            VStack(alignment: .leading, spacing: 10) {
-                Label("Unlimited multi-page scripts", systemImage: "checkmark.circle.fill")
-                Label("Word Tracking and Smart Resync", systemImage: "checkmark.circle.fill")
-                Label("External display and browser remote", systemImage: "checkmark.circle.fill")
-                Label("PPTX import and AI refinement", systemImage: "checkmark.circle.fill")
+    var body: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+
+        VStack(alignment: .leading, spacing: FCSpacingToken.s20.rawValue) {
+            HStack(spacing: FCSpacingToken.s12.rawValue) {
+                FCBrandIconView(size: 36, cornerRadius: FCShapeToken.radius10.rawValue, shadowRadius: 6)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Try FocusCue Pro free for 14 days")
+                        .foregroundStyle(theme.color(.textPrimary))
+                        .fcTypography(.titleM)
+                    Text("Full access to every Pro workflow. After that, FocusCue continues in Lite with one active page.")
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .fcTypography(.bodyM)
+                }
             }
-            .font(.system(size: 13))
-            .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                trialBullet(theme: theme, text: "Unlimited multi-page scripts")
+                trialBullet(theme: theme, text: "Word Tracking and Smart Resync")
+                trialBullet(theme: theme, text: "External display and browser remote")
+                trialBullet(theme: theme, text: "PPTX import and AI refinement")
+            }
+            .padding(FCSpacingToken.s16.rawValue)
+            .background(
+                RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                    .fill(theme.color(.surfaceGlass))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                    .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+            )
+
+            if let proProduct = entitlements.proProduct {
+                Text("Or unlock Pro permanently for \(proProduct.displayPrice)")
+                    .foregroundStyle(theme.color(.textSecondary))
+                    .fcTypography(.caption)
+            }
 
             if let storeErrorMessage = entitlements.storeErrorMessage, !storeErrorMessage.isEmpty {
                 Text(storeErrorMessage)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.orange)
+                    .fcTypography(.caption)
+                    .foregroundStyle(theme.color(.stateError))
             }
 
-            HStack(spacing: 12) {
-                Button("Not now") {
-                    onSkip()
+            HStack(spacing: FCSpacingToken.s12.rawValue) {
+                Button(action: onSkip) {
+                    Text("Maybe later")
+                        .fcTypography(.label)
+                        .foregroundStyle(theme.color(.textTertiary))
                 }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
+                .buttonStyle(.plain)
 
                 Spacer()
 
-                Button("Unlock Pro") {
-                    onPurchase()
+                Button(action: onPurchase) {
+                    Text("Unlock Pro")
+                        .fcTypography(.label)
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .padding(.horizontal, FCSpacingToken.s16.rawValue)
+                        .padding(.vertical, FCSpacingToken.s12.rawValue)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(theme.color(.surfaceGlass))
+                        )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+                        )
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
                 .disabled(entitlements.isPurchasing || entitlements.isRestoring)
 
-                Button("Start 14-Day Trial") {
-                    onStartTrial()
+                Button(action: onStartTrial) {
+                    HStack(spacing: FCSpacingToken.s8.rawValue) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("Start 14-Day Trial")
+                            .fcTypography(.label)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, FCSpacingToken.s20.rawValue)
+                    .padding(.vertical, FCSpacingToken.s12.rawValue)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        theme.color(.accentPrimary).opacity(0.90),
+                                        theme.color(.accentInfo),
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(Color.white.opacity(0.20), lineWidth: FCStrokeToken.thin.rawValue)
+                    )
+                    .shadow(
+                        color: theme.color(.accentPrimary).opacity(FCEffectToken.shadowSoft.opacity),
+                        radius: FCEffectToken.shadowSoft.blur,
+                        y: FCEffectToken.shadowSoft.yOffset
+                    )
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.plain)
             }
         }
-        .padding(24)
-        .frame(width: 500)
-        .background(.regularMaterial)
+        .padding(FCSpacingToken.s24.rawValue)
+        .frame(width: 520)
+        .background(theme.material(.sheet))
+        .background(theme.color(.surfaceGlassStrong).opacity(0.92))
+    }
+
+    @ViewBuilder
+    private func trialBullet(theme: FCTheme, text: String) -> some View {
+        HStack(alignment: .top, spacing: FCSpacingToken.s8.rawValue) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(theme.color(.stateSuccess))
+            Text(text)
+                .foregroundStyle(theme.color(.textPrimary))
+                .fcTypography(.label)
+        }
+    }
+}
+
+struct FCProUnlockedSheet: View {
+    let source: ProUnlockSource
+    let onContinue: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var sourceDetail: String {
+        switch source {
+        case .purchase:
+            return "Your purchase is complete. Word Tracking is now active."
+        case .restore:
+            return "Your purchase has been restored. Word Tracking is now active."
+        }
+    }
+
+    private let unlockedFeatures = [
+        "Unlimited scripts",
+        "Word Tracking",
+        "Smart Resync",
+        "Fullscreen mode",
+        "External display",
+        "Browser remote",
+        "PPTX import",
+        "AI refinement",
+    ]
+
+    private let gridColumns = [
+        GridItem(.flexible(), alignment: .leading),
+        GridItem(.flexible(), alignment: .leading),
+    ]
+
+    var body: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+
+        VStack(spacing: FCSpacingToken.s16.rawValue) {
+            VStack(spacing: FCSpacingToken.s8.rawValue) {
+                FCBrandIconView(size: 48, cornerRadius: FCShapeToken.radius14.rawValue, shadowRadius: 8)
+                    .padding(.bottom, FCSpacingToken.s4.rawValue)
+
+                FCTierBadge(brandState: .pro)
+
+                Text("FocusCue Pro is unlocked")
+                    .foregroundStyle(theme.color(.textPrimary))
+                    .fcTypography(.titleM)
+
+                Text("Every professional teleprompter workflow is now available.")
+                    .foregroundStyle(theme.color(.textSecondary))
+                    .fcTypography(.bodyM)
+
+                Text(sourceDetail)
+                    .foregroundStyle(theme.color(.textTertiary))
+                    .fcTypography(.caption)
+            }
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+
+            LazyVGrid(columns: gridColumns, alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                ForEach(unlockedFeatures, id: \.self) { feature in
+                    HStack(spacing: FCSpacingToken.s8.rawValue) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(theme.color(.stateSuccess))
+                        Text(feature)
+                            .foregroundStyle(theme.color(.textPrimary))
+                            .fcTypography(.label)
+                    }
+                }
+            }
+            .padding(FCSpacingToken.s16.rawValue)
+            .background(
+                RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                    .fill(theme.color(.surfaceGlass))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                    .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+            )
+
+            Button(action: onContinue) {
+                HStack(spacing: FCSpacingToken.s8.rawValue) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("Start Using Pro")
+                        .fcTypography(.label)
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    theme.color(.accentPrimary).opacity(0.90),
+                                    theme.color(.accentInfo),
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(Color.white.opacity(0.20), lineWidth: FCStrokeToken.thin.rawValue)
+                )
+                .shadow(
+                    color: theme.color(.accentPrimary).opacity(FCEffectToken.shadowSoft.opacity),
+                    radius: FCEffectToken.shadowSoft.blur,
+                    y: FCEffectToken.shadowSoft.yOffset
+                )
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(FCSpacingToken.s24.rawValue)
+        .frame(width: 520)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(theme.material(.sheet))
+        .background(theme.color(.surfaceGlassStrong).opacity(0.92))
     }
 }
 
@@ -402,40 +728,113 @@ struct FCDowngradeSheet: View {
     let onContinue: () -> Void
     let onPurchase: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("Your Pro trial has ended")
-                .font(.system(size: 24, weight: .bold))
-            Text("FocusCue is now in Lite. All of your scripts are still here, but only one page can be edited and played at a time.")
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
 
-            VStack(alignment: .leading, spacing: 10) {
-                Label("Keep one page active in Lite", systemImage: "doc.text")
-                Label("Choose any visible page to make it your Lite page", systemImage: "arrow.left.arrow.right.circle")
-                Label("Upgrade anytime to restore unlimited workflows", systemImage: "sparkles")
-            }
-            .font(.system(size: 13))
-            .foregroundStyle(.secondary)
-
-            HStack(spacing: 12) {
-                Button("Continue in Lite") {
-                    onContinue()
+        VStack(alignment: .leading, spacing: FCSpacingToken.s20.rawValue) {
+            HStack(spacing: FCSpacingToken.s12.rawValue) {
+                FCBrandIconView(size: 36, cornerRadius: FCShapeToken.radius10.rawValue, shadowRadius: 6)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Your Pro trial has ended")
+                        .foregroundStyle(theme.color(.textPrimary))
+                        .fcTypography(.titleM)
+                    Text("FocusCue continues in Lite. All your scripts are safe \u{2014} one page stays editable and playable at a time.")
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .fcTypography(.bodyM)
                 }
-                .buttonStyle(.bordered)
+            }
+
+            VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                downgradeBullet(theme: theme, icon: "doc.text", text: "Keep one page active in Lite")
+                downgradeBullet(theme: theme, icon: "arrow.left.arrow.right.circle", text: "Choose any visible page to make it your Lite page")
+                downgradeBullet(theme: theme, icon: "sparkles", text: "Upgrade anytime to restore unlimited workflows")
+            }
+            .padding(FCSpacingToken.s16.rawValue)
+            .background(
+                RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                    .fill(theme.color(.surfaceGlass))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                    .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+            )
+
+            HStack(spacing: FCSpacingToken.s12.rawValue) {
+                Button(action: onContinue) {
+                    Text("Continue with Lite")
+                        .fcTypography(.label)
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .padding(.horizontal, FCSpacingToken.s16.rawValue)
+                        .padding(.vertical, FCSpacingToken.s12.rawValue)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(theme.color(.surfaceGlass))
+                        )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+                        )
+                }
+                .buttonStyle(.plain)
 
                 Spacer()
 
-                Button("Unlock Pro") {
-                    onPurchase()
+                Button(action: onPurchase) {
+                    HStack(spacing: FCSpacingToken.s8.rawValue) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("Unlock Pro")
+                            .fcTypography(.label)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, FCSpacingToken.s20.rawValue)
+                    .padding(.vertical, FCSpacingToken.s12.rawValue)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        theme.color(.accentPrimary).opacity(0.90),
+                                        theme.color(.accentInfo),
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(Color.white.opacity(0.20), lineWidth: FCStrokeToken.thin.rawValue)
+                    )
+                    .shadow(
+                        color: theme.color(.accentPrimary).opacity(FCEffectToken.shadowSoft.opacity),
+                        radius: FCEffectToken.shadowSoft.blur,
+                        y: FCEffectToken.shadowSoft.yOffset
+                    )
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.plain)
                 .disabled(entitlements.isPurchasing || entitlements.isRestoring)
             }
         }
-        .padding(24)
-        .frame(width: 500)
-        .background(.regularMaterial)
+        .padding(FCSpacingToken.s24.rawValue)
+        .frame(width: 520)
+        .background(theme.material(.sheet))
+        .background(theme.color(.surfaceGlassStrong).opacity(0.92))
+    }
+
+    @ViewBuilder
+    private func downgradeBullet(theme: FCTheme, icon: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: FCSpacingToken.s8.rawValue) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(theme.color(.accentInfo))
+            Text(text)
+                .foregroundStyle(theme.color(.textSecondary))
+                .fcTypography(.label)
+        }
     }
 }
 
@@ -443,31 +842,85 @@ struct FCLitePageAccessSheet: View {
     let onUseThisPage: () -> Void
     let onUpgrade: () -> Void
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("This page is locked in Lite")
-                .font(.system(size: 22, weight: .bold))
-            Text("Lite keeps one page editable and playable at a time. You can make this page your active Lite page, or unlock Pro to keep everything available at once.")
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-            HStack(spacing: 12) {
-                Button("Use This Page in Lite") {
-                    onUseThisPage()
+    var body: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+
+        VStack(alignment: .leading, spacing: FCSpacingToken.s20.rawValue) {
+            HStack(spacing: FCSpacingToken.s12.rawValue) {
+                FCBrandIconView(size: 36, cornerRadius: FCShapeToken.radius10.rawValue, shadowRadius: 6)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("This page is locked in Lite")
+                        .foregroundStyle(theme.color(.textPrimary))
+                        .fcTypography(.titleM)
+                    Text("Lite keeps one page editable and playable at a time. You can make this page your active Lite page, or unlock Pro to keep everything available at once.")
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .fcTypography(.bodyM)
                 }
-                .buttonStyle(.bordered)
+            }
+
+            HStack(spacing: FCSpacingToken.s12.rawValue) {
+                Button(action: onUseThisPage) {
+                    Text("Use This Page in Lite")
+                        .fcTypography(.label)
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .padding(.horizontal, FCSpacingToken.s16.rawValue)
+                        .padding(.vertical, FCSpacingToken.s12.rawValue)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(theme.color(.surfaceGlass))
+                        )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+                        )
+                }
+                .buttonStyle(.plain)
 
                 Spacer()
 
-                Button("Upgrade to Pro") {
-                    onUpgrade()
+                Button(action: onUpgrade) {
+                    HStack(spacing: FCSpacingToken.s8.rawValue) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("Upgrade to Pro")
+                            .fcTypography(.label)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, FCSpacingToken.s20.rawValue)
+                    .padding(.vertical, FCSpacingToken.s12.rawValue)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        theme.color(.accentPrimary).opacity(0.90),
+                                        theme.color(.accentInfo),
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(Color.white.opacity(0.20), lineWidth: FCStrokeToken.thin.rawValue)
+                    )
+                    .shadow(
+                        color: theme.color(.accentPrimary).opacity(FCEffectToken.shadowSoft.opacity),
+                        radius: FCEffectToken.shadowSoft.blur,
+                        y: FCEffectToken.shadowSoft.yOffset
+                    )
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.plain)
             }
         }
-        .padding(24)
-        .frame(width: 460)
-        .background(.regularMaterial)
+        .padding(FCSpacingToken.s24.rawValue)
+        .frame(width: 500)
+        .background(theme.material(.sheet))
+        .background(theme.color(.surfaceGlassStrong).opacity(0.92))
     }
 }
 
@@ -507,20 +960,33 @@ struct FCProLockedRow<Content: View>: View {
                         Spacer()
                         Button(action: onUpgrade) {
                             HStack(spacing: 4) {
-                                Image(systemName: "lock.fill")
+                                Image(systemName: "sparkles")
                                     .font(.system(size: 10, weight: .semibold))
                                 Text("Pro")
                                     .fcTypography(.caption)
                             }
+                            .foregroundStyle(theme.color(.accentPrimary))
                             .padding(.horizontal, FCSpacingToken.s8.rawValue)
                             .padding(.vertical, 4)
                             .background(
                                 Capsule(style: .continuous)
-                                    .fill(theme.color(.stateWarning).opacity(0.14))
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                theme.color(.accentPrimary).opacity(0.14),
+                                                theme.color(.accentInfo).opacity(0.10),
+                                            ],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                            )
+                            .overlay(
+                                Capsule(style: .continuous)
+                                    .stroke(theme.color(.accentPrimary).opacity(0.20), lineWidth: FCStrokeToken.thin.rawValue)
                             )
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(theme.color(.stateWarning))
                     }
                 }
             }

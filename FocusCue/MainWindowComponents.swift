@@ -195,21 +195,21 @@ struct FCPageRail: View {
             HStack(spacing: FCSpacingToken.s8.rawValue) {
                 Image(systemName: canAddPages ? "plus.circle.fill" : "lock.fill")
                     .font(.system(size: 13, weight: .semibold))
-                Text(canAddPages ? "Add Page" : "Add Page (Pro)")
+                Text("Add Page")
                     .fcTypography(.label)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, FCSpacingToken.s12.rawValue)
             .padding(.vertical, FCSpacingToken.s8.rawValue)
-            .foregroundStyle(theme.color(canAddPages ? .accentPrimary : .stateWarning))
+            .foregroundStyle(theme.color(.accentPrimary))
             .background(
                 RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                    .fill(theme.color(canAddPages ? .accentPrimary : .stateWarning).opacity(0.12))
+                    .fill(theme.color(.accentPrimary).opacity(0.12))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
                     .stroke(
-                        theme.color(canAddPages ? .accentPrimary : .stateWarning).opacity(0.24),
+                        theme.color(.accentPrimary).opacity(0.24),
                         lineWidth: FCStrokeToken.thin.rawValue
                     )
             )
@@ -340,7 +340,7 @@ private struct FCSidebarPageRow: View {
     var body: some View {
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
         let background = row.isLocked
-            ? theme.color(.stateWarning).opacity(row.isSelected ? 0.14 : 0.08)
+            ? theme.color(.accentPrimary).opacity(row.isSelected ? 0.14 : 0.08)
             : row.isSelected
             ? theme.color(.accentInfo).opacity(0.24)
             : (isHovered ? theme.color(.surfaceGlassStrong).opacity(0.72) : theme.color(.surfaceGlass).opacity(0.45))
@@ -375,7 +375,7 @@ private struct FCSidebarPageRow: View {
                         if row.isLiteActive {
                             tag(theme: theme, title: "Lite Active", color: .accentInfo)
                         } else if row.isLocked {
-                            tag(theme: theme, title: "Pro", color: .stateWarning)
+                            tag(theme: theme, title: "Pro", color: .accentPrimary)
                         } else if row.needsSave || row.saveFailed {
                             Circle()
                                 .fill(theme.color(.stateWarning))
@@ -588,7 +588,7 @@ struct FCActionBar: View {
                     FCActionTile(
                         title: "Add Page",
                         icon: accessTier == .lite ? "lock.fill" : "plus.square.on.square",
-                        accent: accessTier == .lite ? .stateWarning : .accentPrimary,
+                        accent: .accentPrimary,
                         badge: accessTier == .lite ? "Pro" : nil,
                         action: onAddPage
                     )
@@ -630,13 +630,13 @@ struct FCActionBar: View {
                     .foregroundStyle(
                         isSelected
                         ? Color.white
-                        : theme.color(isLocked ? .stateWarning : .textSecondary)
+                        : theme.color(isLocked ? .accentPrimary : .textSecondary)
                     )
                     .background(
                         RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
                             .fill(
                                 isSelected
-                                ? theme.color(isLocked ? .stateWarning : .accentInfo)
+                                ? theme.color(isLocked ? .accentPrimary : .accentInfo)
                                 : .clear
                             )
                     )
