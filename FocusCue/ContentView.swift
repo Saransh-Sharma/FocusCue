@@ -634,6 +634,8 @@ Happy presenting! [wave]
             paywallContent(for: feature)
         case .trialOffer(_):
             trialOfferContent
+        case .proUnlocked(let source):
+            proUnlockedContent(for: source)
         case .litePageAccess(let pageID):
             litePageAccessContent(for: pageID)
         case .downgrade:
@@ -683,6 +685,18 @@ Happy presenting! [wave]
             },
             onSkip: {
                 modalCoordinator.pop()
+                DispatchQueue.main.async {
+                    executePendingTrialAction(skipTrialOffer: true)
+                }
+            }
+        )
+    }
+
+    private func proUnlockedContent(for source: ProUnlockSource) -> some View {
+        FCProUnlockedSheet(
+            source: source,
+            onContinue: {
+                modalCoordinator.clear()
                 DispatchQueue.main.async {
                     executePendingTrialAction(skipTrialOffer: true)
                 }
@@ -852,6 +866,12 @@ Happy presenting! [wave]
             applyOnboardingDraft(completion.draft)
         }
 
+        if completion.shouldStartTrial {
+            _ = entitlements.startTrialIfNeeded()
+            NotchSettings.shared.listeningMode = .wordTracking
+            entitlements.refreshPresentationState()
+        }
+
         if completion.markOnboardingComplete {
             onboardingCompleted = true
             onboardingVersion = FocusCueOnboardingStorage.currentVersion
@@ -861,9 +881,15 @@ Happy presenting! [wave]
             onboardingLastCompletedStep = completion.draft.lastVisitedStep.rawValue
         }
 
+        if completion.shouldPresentUpgrade {
+            presentPaywall(.generalAccess)
+            return
+        }
+
         if completion.launchGuidedTemplate {
             settingsGuidedTemplateDraft = nil
-            startGuidedTemplate(from: completion.draft)
+            let shouldApplyDraftBeforeStart = !completion.applyDraft && !completion.shouldStartTrial
+            startGuidedTemplate(from: completion.draft, applyDraftBeforeStart: shouldApplyDraftBeforeStart)
             return
         }
 
@@ -882,8 +908,10 @@ Happy presenting! [wave]
         isTextFocused = true
     }
 
-    private func startGuidedTemplate(from draft: OnboardingDraft) {
-        applyOnboardingDraft(draft)
+    private func startGuidedTemplate(from draft: OnboardingDraft, applyDraftBeforeStart: Bool = true) {
+        if applyDraftBeforeStart {
+            applyOnboardingDraft(draft)
+        }
         applyGuidedTemplate()
         run()
     }
@@ -925,8 +953,14 @@ Happy presenting! [wave]
 
     private func purchasePro() {
         Task {
+            let hadLifetimePurchaseBefore = entitlements.hasLifetimePurchase
             let didPurchase = await entitlements.purchaseLifetimeUnlock()
             if didPurchase {
+                let newlyGainedPro = !hadLifetimePurchaseBefore && entitlements.hasLifetimePurchase
+                if newlyGainedPro {
+                    applyPostProUnlockExperience(source: .purchase)
+                    return
+                }
                 entitlements.enforceAllowedSettings()
                 dismissTopPaywallIfNeeded()
                 dismissTrialOfferIfNeeded()
@@ -938,8 +972,14 @@ Happy presenting! [wave]
 
     private func restorePurchases() {
         Task {
+            let hadLifetimePurchaseBefore = entitlements.hasLifetimePurchase
             await entitlements.restorePurchases()
             if entitlements.hasLifetimePurchase {
+                let newlyGainedPro = !hadLifetimePurchaseBefore && entitlements.hasLifetimePurchase
+                if newlyGainedPro {
+                    applyPostProUnlockExperience(source: .restore)
+                    return
+                }
                 entitlements.enforceAllowedSettings()
                 dismissTopPaywallIfNeeded()
                 dismissTrialOfferIfNeeded()
@@ -947,6 +987,13 @@ Happy presenting! [wave]
                 executePendingTrialAction(skipTrialOffer: true)
             }
         }
+    }
+
+    private func applyPostProUnlockExperience(source: ProUnlockSource) {
+        entitlements.enforceAllowedSettings()
+        NotchSettings.shared.listeningMode = .wordTracking
+        syncDowngradeRouteIfNeeded()
+        modalCoordinator.present(.proUnlocked(source: source))
     }
 
     private func presentLitePageOptions(for pageID: UUID) {

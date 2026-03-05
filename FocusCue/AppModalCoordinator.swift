@@ -5,6 +5,11 @@
 
 import Foundation
 
+enum ProUnlockSource: Equatable {
+    case purchase
+    case restore
+}
+
 enum TrialEntryAction: Equatable {
     case startSequence
     case openDraft
@@ -19,6 +24,7 @@ final class AppModalCoordinator {
         case about
         case paywall(feature: FeatureGate)
         case trialOffer(action: TrialEntryAction)
+        case proUnlocked(source: ProUnlockSource)
         case litePageAccess(pageID: UUID)
         case downgrade
 
@@ -38,6 +44,13 @@ final class AppModalCoordinator {
                     return "trial-start-sequence"
                 case .openDraft:
                     return "trial-open-draft"
+                }
+            case .proUnlocked(let source):
+                switch source {
+                case .purchase:
+                    return "pro-unlocked-purchase"
+                case .restore:
+                    return "pro-unlocked-restore"
                 }
             case .litePageAccess(let pageID):
                 return "lite-page-\(pageID.uuidString)"
