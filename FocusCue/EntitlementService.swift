@@ -124,11 +124,16 @@ struct EntitlementSnapshot {
     var lastVerifiedPurchaseAt: Date?
 }
 
+enum StoreProductIDs {
+    // Must match App Store Connect and FocusCue/StoreKit/FocusCue.storekit.
+    static let lifetimeProUnlock = "com.saransh1337.focuscue.pro.lifetime.teleprompter"
+}
+
 @Observable
 final class EntitlementService {
     static let shared = EntitlementService()
 
-    let lifetimeProductID = "teleprompter_pro_lifetime"
+    let lifetimeProductID = StoreProductIDs.lifetimeProUnlock
 
     private let trialStartedAtKey = "focuscue.entitlement.trialStartedAt"
     private let trialEndsAtKey = "focuscue.entitlement.trialEndsAt"
@@ -228,6 +233,14 @@ final class EntitlementService {
 
     var hasStartedTrial: Bool {
         trialStartedAt != nil
+    }
+
+    var isEligibleForTrial: Bool {
+        !hasLifetimePurchase && !hasStartedTrial
+    }
+
+    var hasExpiredPriorTrial: Bool {
+        hasStartedTrial && !isTrialActive && !hasLifetimePurchase
     }
 
     var isTrialActive: Bool {
@@ -569,7 +582,7 @@ final class EntitlementService {
         }
 
         guard let proProduct else {
-            storeErrorMessage = "Lifetime unlock is not configured for this build yet."
+            storeErrorMessage = "The Pro unlock is currently unavailable. Please try again in a few minutes."
             return false
         }
 
