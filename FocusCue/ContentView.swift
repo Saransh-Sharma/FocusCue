@@ -604,7 +604,7 @@ Happy presenting! [wave]
     @ViewBuilder
     private var modalSheetContent: some View {
         if let rootRoute = modalCoordinator.stack.first {
-            ZStack {
+            ZStack(alignment: .top) {
                 modalBaseContent(for: rootRoute)
 
                 if modalCoordinator.stack.count > 1,
