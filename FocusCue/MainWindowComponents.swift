@@ -84,7 +84,10 @@ struct FCGlassPanel<Content: View>: View {
 
 struct FCWindowHeader: View {
     let subtitle: String
+    @Bindable var entitlements: EntitlementService
     var compact: Bool = false
+    var onUpgrade: () -> Void = {}
+    var onRestore: () -> Void = {}
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -115,6 +118,11 @@ struct FCWindowHeader: View {
                 }
                 .layoutPriority(1)
                 Spacer()
+                FCInlineEntitlementWidget(
+                    entitlements: entitlements,
+                    onUpgrade: onUpgrade,
+                    onRestore: onRestore
+                )
             }
         }
     }
@@ -123,13 +131,16 @@ struct FCWindowHeader: View {
 struct FCPageRail: View {
     let livePages: [SidebarPageRowModel]
     let archivePages: [SidebarPageRowModel]
+    let canAddPages: Bool
     let canDeletePages: Bool
     let selectedModule: PageModule?
     let onSelectPage: (UUID) -> Void
+    let onSelectLockedPage: (UUID) -> Void
     let onRenamePage: (UUID, String) -> Void
     let onSavePage: (UUID) -> Void
     let onDeletePage: (UUID) -> Void
     let onAddLivePage: () -> Void
+    let onAddLocked: () -> Void
     let onMovePageUp: (UUID, PageModule) -> Void
     let onMovePageDown: (UUID, PageModule) -> Void
 
@@ -180,15 +191,15 @@ struct FCPageRail: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .contextMenu {
-            Button("Add Page", action: onAddLivePage)
+            Button("Add Page", action: canAddPages ? onAddLivePage : onAddLocked)
         }
     }
 
     @ViewBuilder
     private func addPageButton(theme: FCTheme) -> some View {
-        Button(action: onAddLivePage) {
+        Button(action: canAddPages ? onAddLivePage : onAddLocked) {
             HStack(spacing: FCSpacingToken.s8.rawValue) {
-                Image(systemName: "plus.circle.fill")
+                Image(systemName: canAddPages ? "plus.circle.fill" : "lock.fill")
                     .font(.system(size: 13, weight: .semibold))
                 Text("Add Page")
                     .fcTypography(.label)
@@ -203,7 +214,10 @@ struct FCPageRail: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                    .stroke(theme.color(.accentPrimary).opacity(0.24), lineWidth: FCStrokeToken.thin.rawValue)
+                    .stroke(
+                        theme.color(.accentPrimary).opacity(0.24),
+                        lineWidth: FCStrokeToken.thin.rawValue
+                    )
             )
         }
         .buttonStyle(.plain)
@@ -283,6 +297,7 @@ struct FCPageRail: View {
                     isEditing: editingPageID == page.id,
                     draftTitle: $draftTitle,
                     onSelect: { onSelectPage(page.id) },
+                    onSelectLocked: { onSelectLockedPage(page.id) },
                     onBeginRename: {
                         editingPageID = page.id
                         draftTitle = page.baseTitle
@@ -313,6 +328,7 @@ private struct FCSidebarPageRow: View {
     let isEditing: Bool
     @Binding var draftTitle: String
     let onSelect: () -> Void
+    let onSelectLocked: () -> Void
     let onBeginRename: () -> Void
     let onCommitRename: () -> Void
     let onCancelRename: () -> Void
@@ -329,7 +345,9 @@ private struct FCSidebarPageRow: View {
 
     var body: some View {
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
-        let background = row.isSelected
+        let background = row.isLocked
+            ? theme.color(.accentPrimary).opacity(row.isSelected ? 0.14 : 0.08)
+            : row.isSelected
             ? theme.color(.accentInfo).opacity(0.24)
             : (isHovered ? theme.color(.surfaceGlassStrong).opacity(0.72) : theme.color(.surfaceGlass).opacity(0.45))
 
@@ -348,12 +366,23 @@ private struct FCSidebarPageRow: View {
                 } else {
                     HStack(spacing: FCSpacingToken.s4.rawValue) {
                         Text("\(row.localIndex). \(row.baseTitle)")
-                            .foregroundStyle(row.isSelected ? theme.color(.textPrimary) : theme.color(.textSecondary))
+                            .foregroundStyle(
+                                row.isLocked
+                                ? theme.color(.textTertiary)
+                                : (row.isSelected ? theme.color(.textPrimary) : theme.color(.textSecondary))
+                            )
                             .lineLimit(1)
                             .fcTypography(.label)
-                            .onTapGesture(count: 2, perform: onBeginRename)
+                            .onTapGesture(count: 2) {
+                                guard row.canRename else { return }
+                                onBeginRename()
+                            }
 
-                        if row.needsSave || row.saveFailed {
+                        if row.isLiteActive {
+                            tag(theme: theme, title: "Lite Active", color: .accentInfo)
+                        } else if row.isLocked {
+                            tag(theme: theme, title: "Pro", color: .accentPrimary)
+                        } else if row.needsSave || row.saveFailed {
                             Circle()
                                 .fill(theme.color(.stateWarning))
                                 .frame(width: 6, height: 6)
@@ -362,7 +391,7 @@ private struct FCSidebarPageRow: View {
                 }
 
                 Spacer(minLength: 0)
-                if (row.needsSave || row.saveFailed) && !isEditing && (isHovered || row.isSelected) {
+                if row.canSave && (row.needsSave || row.saveFailed) && !isEditing && (isHovered || row.isSelected) {
                     Button("Save", action: onSave)
                         .buttonStyle(.plain)
                         .foregroundStyle(theme.color(.accentInfo))
@@ -383,7 +412,7 @@ private struct FCSidebarPageRow: View {
 
             if !row.preview.isEmpty {
                 Text(row.preview)
-                    .foregroundStyle(theme.color(.textTertiary))
+                    .foregroundStyle(row.isLocked ? theme.color(.textTertiary).opacity(0.8) : theme.color(.textTertiary))
                     .lineLimit(1)
                     .fcTypography(.caption)
             }
@@ -405,7 +434,11 @@ private struct FCSidebarPageRow: View {
         .contentShape(RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous))
         .onTapGesture {
             if !isEditing {
-                onSelect()
+                if row.isLocked {
+                    onSelectLocked()
+                } else {
+                    onSelect()
+                }
             }
         }
         .onHover { hovering in
@@ -414,26 +447,48 @@ private struct FCSidebarPageRow: View {
             }
         }
         .contextMenu {
-            if row.needsSave || row.saveFailed {
-                Button("Save", action: onSave)
-            }
-            Button("Rename", action: onBeginRename)
-            Button("Move Up", action: onMoveUp)
-                .disabled(!canMoveUp)
-            Button("Move Down", action: onMoveDown)
-                .disabled(!canMoveDown)
-            if canDelete {
-                Button(role: .destructive, action: onDelete) {
-                    Label("Delete Page", systemImage: "trash")
+            if row.isLocked {
+                Button("Use This Page in Lite", action: onSelectLocked)
+            } else {
+                if row.canSave && (row.needsSave || row.saveFailed) {
+                    Button("Save", action: onSave)
+                }
+                if row.canRename {
+                    Button("Rename", action: onBeginRename)
+                }
+                if row.canMove {
+                    Button("Move Up", action: onMoveUp)
+                        .disabled(!canMoveUp)
+                    Button("Move Down", action: onMoveDown)
+                        .disabled(!canMoveDown)
+                }
+                if row.canDelete && canDelete {
+                    Button(role: .destructive, action: onDelete) {
+                        Label("Delete Page", systemImage: "trash")
+                    }
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func tag(theme: FCTheme, title: String, color: FCColorToken) -> some View {
+        Text(title)
+            .foregroundStyle(theme.color(color))
+            .fcTypography(.caption)
+            .padding(.horizontal, FCSpacingToken.s8.rawValue)
+            .padding(.vertical, FCSpacingToken.s4.rawValue)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(theme.color(color).opacity(0.14))
+            )
     }
 }
 
 struct FCActionBar: View {
     let isRunning: Bool
     let startAvailabilityReason: FocusCueService.StartAvailabilityReason
+    let accessTier: AccessTier
     @Bindable var settings: NotchSettings
     let hasDirtyPages: Bool
     let showOnboardingPrompt: Bool
@@ -445,9 +500,11 @@ struct FCActionBar: View {
     let onAddPage: () -> Void
     let onSettings: () -> Void
     let onOpenOnboarding: () -> Void
+    let onBlockedFeature: (FeatureGate) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var entitlements = EntitlementService.shared
     @State private var isStartHovered = false
 
     private var canStart: Bool {
@@ -460,6 +517,9 @@ struct FCActionBar: View {
         }
         switch startAvailabilityReason {
         case .ready:
+            if accessTier == .lite {
+                return "Starts from the active Lite page only. Upgrade to play full multi-page sequences."
+            }
             return "Starts from the selected live page and continues through remaining pages."
         case .noSelection:
             return "Select a page in Live Transcripts to enable Start."
@@ -520,13 +580,7 @@ struct FCActionBar: View {
                         .foregroundStyle(theme.color(.textSecondary))
                         .fcTypography(.label)
 
-                    Picker("", selection: $settings.listeningMode) {
-                        ForEach(ListeningMode.allCases) { mode in
-                            Text(mode.label).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
+                    listeningModePicker(theme: theme)
 
                     Text(settings.listeningMode.description)
                         .foregroundStyle(theme.color(.textTertiary))
@@ -537,7 +591,13 @@ struct FCActionBar: View {
                     FCActionTile(title: "Open", icon: "folder", accent: .accentInfo, action: onOpenDocument)
                     FCActionTile(title: "Save", icon: "square.and.arrow.down", accent: .accentInfo, enabled: hasDirtyPages, action: onSaveAllDirtyPages)
                     FCActionTile(title: "Draft", icon: "mic.badge.plus", accent: .accentCTA, action: onDraft)
-                    FCActionTile(title: "Add Page", icon: "plus.square.on.square", accent: .accentPrimary, action: onAddPage)
+                    FCActionTile(
+                        title: "Add Page",
+                        icon: accessTier == .lite ? "lock.fill" : "plus.square.on.square",
+                        accent: .accentPrimary,
+                        badge: accessTier == .lite ? "Pro" : nil,
+                        action: onAddPage
+                    )
                     FCActionTile(title: "Settings", icon: "slider.horizontal.3", accent: .accentInfo, action: onSettings)
                     if showOnboardingPrompt {
                         FCActionTile(title: "Setup", icon: "sparkles", accent: .accentCTA, action: onOpenOnboarding)
@@ -546,6 +606,56 @@ struct FCActionBar: View {
             }
         }
     }
+
+    @ViewBuilder
+    private func listeningModePicker(theme: FCTheme) -> some View {
+        let allowedModes = Set(entitlements.availableListeningModes(current: settings.listeningMode))
+
+        HStack(spacing: 0) {
+            ForEach(ListeningMode.allCases) { mode in
+                let isSelected = settings.listeningMode == mode
+                let isLocked = !allowedModes.contains(mode)
+
+                Button {
+                    if isLocked {
+                        onBlockedFeature(.wordTracking)
+                    } else {
+                        settings.listeningMode = mode
+                    }
+                } label: {
+                    HStack(spacing: FCSpacingToken.s4.rawValue) {
+                        Text(mode.label)
+                            .lineLimit(1)
+                        if isLocked {
+                            Image(systemName: "lock.fill")
+                                .font(FCTypographyToken.caption.font)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, FCSpacingToken.s8.rawValue)
+                    .foregroundStyle(
+                        isSelected
+                        ? Color.white
+                        : theme.color(isLocked ? .accentPrimary : .textSecondary)
+                    )
+                    .background(
+                        RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
+                            .fill(
+                                isSelected
+                                ? theme.color(isLocked ? .accentPrimary : .accentInfo)
+                                : .clear
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(FCSpacingToken.s4.rawValue)
+        .background(
+            RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                .fill(theme.color(.surfaceGlassStrong).opacity(0.7))
+        )
+    }
 }
 
 private struct FCActionTile: View {
@@ -553,6 +663,7 @@ private struct FCActionTile: View {
     let icon: String
     let accent: FCColorToken
     var enabled: Bool = true
+    var badge: String?
     let action: () -> Void
 
     @State private var isHovered = false
@@ -581,6 +692,20 @@ private struct FCActionTile: View {
                 RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
                     .stroke(theme.color(accent).opacity(isHovered ? 0.32 : 0), lineWidth: FCStrokeToken.thin.rawValue)
             )
+            .overlay(alignment: .topTrailing) {
+                if let badge {
+                    Text(badge)
+                        .fcTypography(.caption)
+                        .foregroundStyle(theme.color(accent))
+                        .padding(.horizontal, FCSpacingToken.s4.rawValue)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(theme.color(accent).opacity(0.14))
+                        )
+                        .padding(6)
+                }
+            }
         }
         .buttonStyle(.plain)
         .disabled(!enabled)

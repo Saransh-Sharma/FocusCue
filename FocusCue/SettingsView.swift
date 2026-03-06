@@ -301,11 +301,15 @@ struct SettingsView: View {
     @Bindable var settings: NotchSettings
     let launchedFromOnboarding: Bool
     let onReturnToGuidedTemplate: (() -> Void)?
+    let onUpgrade: () -> Void
+    let onRestorePurchases: () -> Void
+    let onBlockedFeature: (FeatureGate) -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var previewController = NotchPreviewController()
+    @State private var entitlements = EntitlementService.shared
     @State private var selectedTab: SettingsTab = .display
     @State private var showResetConfirmation = false
     @State private var showResetAppConfirmation = false
@@ -318,6 +322,10 @@ struct SettingsView: View {
     @State private var showAdvanced: Bool = false
     @State private var browserPortInput: String = ""
     @State private var browserPortValidation: String?
+    @State private var lastAllowedOverlayMode: OverlayMode = .pinned
+    @State private var lastAllowedListeningMode: ListeningMode = .classic
+    @State private var lastAllowedSpeechBackend: SpeechBackend = .apple
+    @State private var lastAllowedExternalDisplayMode: ExternalDisplayMode = .off
 
     private var theme: FCTheme {
         FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
@@ -327,15 +335,28 @@ struct SettingsView: View {
         "http://\(localIP):\(settings.browserServerPort)"
     }
 
+    private var availableOverlayModes: [OverlayMode] {
+        if entitlements.has(.fullscreenOverlay) || settings.overlayMode == .fullscreen {
+            return OverlayMode.allCases
+        }
+        return [.pinned, .floating]
+    }
+
     init(
         settings: NotchSettings,
         initialTab: SettingsTab = .display,
         launchedFromOnboarding: Bool = false,
-        onReturnToGuidedTemplate: (() -> Void)? = nil
+        onReturnToGuidedTemplate: (() -> Void)? = nil,
+        onUpgrade: @escaping () -> Void,
+        onRestorePurchases: @escaping () -> Void,
+        onBlockedFeature: @escaping (FeatureGate) -> Void
     ) {
         self.settings = settings
         self.launchedFromOnboarding = launchedFromOnboarding
         self.onReturnToGuidedTemplate = onReturnToGuidedTemplate
+        self.onUpgrade = onUpgrade
+        self.onRestorePurchases = onRestorePurchases
+        self.onBlockedFeature = onBlockedFeature
         _selectedTab = State(initialValue: initialTab)
     }
 
@@ -367,6 +388,7 @@ struct SettingsView: View {
             Text("This restores FocusCue settings to their defaults and reopens onboarding. Your saved scripts and files will not be deleted.")
         }
         .onAppear {
+            entitlements.enforceAllowedSettings()
             syncDerivedState()
             if settings.overlayMode != .fullscreen {
                 previewController.show(settings: settings)
@@ -401,6 +423,12 @@ struct SettingsView: View {
             }
         }
         .onChange(of: settings.overlayMode) { _, mode in
+            if entitlements.tier == .lite && mode == .fullscreen {
+                settings.overlayMode = lastAllowedOverlayMode == .fullscreen ? .floating : lastAllowedOverlayMode
+                onBlockedFeature(.fullscreenOverlay)
+                return
+            }
+            lastAllowedOverlayMode = mode
             if mode == .fullscreen {
                 previewController.hide()
             } else {
@@ -418,6 +446,48 @@ struct SettingsView: View {
                 browserPortInput = value
             }
             validateBrowserPortInput(browserPortInput)
+        }
+        .onChange(of: settings.listeningMode) { _, newValue in
+            if entitlements.tier == .lite && newValue == .wordTracking {
+                settings.listeningMode = lastAllowedListeningMode == .wordTracking ? .silencePaused : lastAllowedListeningMode
+                onBlockedFeature(.wordTracking)
+            } else {
+                lastAllowedListeningMode = newValue
+            }
+        }
+        .onChange(of: settings.speechBackend) { _, newValue in
+            if entitlements.tier == .lite && newValue == .deepgram {
+                settings.speechBackend = lastAllowedSpeechBackend == .deepgram ? .apple : lastAllowedSpeechBackend
+                onBlockedFeature(.deepgramBackend)
+            } else {
+                lastAllowedSpeechBackend = newValue
+            }
+        }
+        .onChange(of: settings.llmResyncEnabled) { _, isEnabled in
+            if entitlements.tier == .lite && isEnabled {
+                settings.llmResyncEnabled = false
+                onBlockedFeature(.smartResync)
+            }
+        }
+        .onChange(of: settings.externalDisplayMode) { _, newValue in
+            if entitlements.tier == .lite && newValue != .off {
+                settings.externalDisplayMode = lastAllowedExternalDisplayMode == .off ? .off : lastAllowedExternalDisplayMode
+                onBlockedFeature(.externalDisplay)
+            } else {
+                lastAllowedExternalDisplayMode = newValue
+            }
+        }
+        .onChange(of: settings.browserServerEnabled) { _, isEnabled in
+            if entitlements.tier == .lite && isEnabled {
+                settings.browserServerEnabled = false
+                onBlockedFeature(.browserRemote)
+            }
+        }
+        .onChange(of: settings.autoNextPage) { _, isEnabled in
+            if entitlements.tier == .lite && isEnabled {
+                settings.autoNextPage = false
+                onBlockedFeature(.autoNextPage)
+            }
         }
         .onChange(of: selectedTab) { _, tab in
             if tab == .guidance {
@@ -452,6 +522,10 @@ struct SettingsView: View {
                 onboardingCallout
             }
 
+            if entitlements.tier != .pro {
+                monetizationCallout
+            }
+
             Group {
                 switch selectedTab {
                 case .display:
@@ -464,6 +538,34 @@ struct SettingsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var monetizationCallout: some View {
+        VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+            HStack(spacing: FCSpacingToken.s8.rawValue) {
+                FCTierBadge(brandState: entitlements.brandState)
+                Spacer()
+                Button("Upgrade to Pro") {
+                    onUpgrade()
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(theme.color(.accentPrimary))
+                .fcTypography(.label)
+                Button("Restore Purchases") {
+                    onRestorePurchases()
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(theme.color(.accentInfo))
+                .fcTypography(.label)
+            }
+
+            FCSettingsInlineNotice(
+                kind: .info,
+                text: entitlements.tier == .trial
+                    ? entitlements.statusFootnote
+                    : "Lite keeps core settings available, while Word Tracking, fullscreen, external output, browser remote, and advanced AI workflows are Pro."
+            )
+        }
     }
 
     private var onboardingCallout: some View {
@@ -563,7 +665,7 @@ struct SettingsView: View {
             FCSettingsSectionCard(title: "Overlay Mode") {
                 VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
                     Picker("", selection: $settings.overlayMode) {
-                        ForEach(OverlayMode.allCases) { mode in
+                        ForEach(availableOverlayModes) { mode in
                             Text(mode.label).tag(mode)
                         }
                     }
@@ -794,17 +896,23 @@ struct SettingsView: View {
                     }
                     .toggleStyle(.checkbox)
 
-                    Toggle(isOn: $settings.autoNextPage) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Auto Next Page")
-                                .foregroundStyle(theme.color(.textPrimary))
-                                .fcTypography(.label)
-                            Text("Automatically advance to the next page after a countdown.")
-                                .foregroundStyle(theme.color(.textSecondary))
-                                .fcTypography(.caption)
+                    FCProLockedRow(
+                        title: "",
+                        isLocked: !entitlements.canEnable(.autoNextPage) && !settings.autoNextPage,
+                        onUpgrade: { onBlockedFeature(.autoNextPage) }
+                    ) {
+                        Toggle(isOn: $settings.autoNextPage) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Auto Next Page")
+                                    .foregroundStyle(theme.color(.textPrimary))
+                                    .fcTypography(.label)
+                                Text("Automatically advance to the next page after a countdown.")
+                                    .foregroundStyle(theme.color(.textSecondary))
+                                    .fcTypography(.caption)
+                            }
                         }
+                        .toggleStyle(.checkbox)
                     }
-                    .toggleStyle(.checkbox)
 
                     if settings.autoNextPage {
                         HStack(spacing: FCSpacingToken.s8.rawValue) {
@@ -835,7 +943,7 @@ struct SettingsView: View {
             FCSettingsSectionCard(title: "Listening Mode") {
                 VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
                     Picker("", selection: $settings.listeningMode) {
-                        ForEach(ListeningMode.allCases) { mode in
+                        ForEach(entitlements.availableListeningModes(current: settings.listeningMode)) { mode in
                             Text(mode.label).tag(mode)
                         }
                     }
@@ -866,7 +974,7 @@ struct SettingsView: View {
             FCSettingsSectionCard(title: "Speech Backend") {
                 VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
                     Picker("", selection: $settings.speechBackend) {
-                        ForEach(SpeechBackend.allCases) { backend in
+                        ForEach(entitlements.availableSpeechBackends(current: settings.speechBackend)) { backend in
                             Text(backend.label).tag(backend)
                         }
                     }
@@ -909,30 +1017,36 @@ struct SettingsView: View {
             }
 
             FCSettingsSectionCard(title: "Smart Resync") {
-                VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
-                    Toggle(isOn: $settings.llmResyncEnabled) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Enable Smart Resync")
-                                .foregroundStyle(theme.color(.textPrimary))
-                                .fcTypography(.label)
-                            Text("Uses AI to re-sync the teleprompter when you paraphrase or go off-script.")
+                FCProLockedRow(
+                    title: "",
+                    isLocked: !entitlements.canEnable(.smartResync) && !settings.llmResyncEnabled,
+                    onUpgrade: { onBlockedFeature(.smartResync) }
+                ) {
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                        Toggle(isOn: $settings.llmResyncEnabled) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Enable Smart Resync")
+                                    .foregroundStyle(theme.color(.textPrimary))
+                                    .fcTypography(.label)
+                                Text("Uses AI to re-sync the teleprompter when you paraphrase or go off-script.")
+                                    .foregroundStyle(theme.color(.textSecondary))
+                                    .fcTypography(.caption)
+                            }
+                        }
+                        .toggleStyle(.switch)
+
+                        VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
+                            Text("Refinement Model")
                                 .foregroundStyle(theme.color(.textSecondary))
                                 .fcTypography(.caption)
+                            Picker("", selection: $settings.refinementModel) {
+                                Text("GPT-4o").tag("gpt-4o")
+                                Text("GPT-4o Mini").tag("gpt-4o-mini")
+                                Text("GPT-5.2").tag("gpt-5.2")
+                            }
+                            .labelsHidden()
+                            .frame(width: 200)
                         }
-                    }
-                    .toggleStyle(.switch)
-
-                    VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
-                        Text("Refinement Model")
-                            .foregroundStyle(theme.color(.textSecondary))
-                            .fcTypography(.caption)
-                        Picker("", selection: $settings.refinementModel) {
-                            Text("GPT-4o").tag("gpt-4o")
-                            Text("GPT-4o Mini").tag("gpt-4o-mini")
-                            Text("GPT-5.2").tag("gpt-5.2")
-                        }
-                        .labelsHidden()
-                        .frame(width: 200)
                     }
                 }
             }
@@ -991,18 +1105,24 @@ struct SettingsView: View {
     private var connectionsTab: some View {
         settingsScroll {
             FCSettingsSectionCard(title: "External Output", subtitle: "Show the teleprompter on an external display or Sidecar iPad.") {
-                VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
-                    Picker("", selection: $settings.externalDisplayMode) {
-                        ForEach(ExternalDisplayMode.allCases) { mode in
-                            Text(mode.label).tag(mode)
+                FCProLockedRow(
+                    title: "",
+                    isLocked: !entitlements.canEnable(.externalDisplay) && settings.externalDisplayMode == .off,
+                    onUpgrade: { onBlockedFeature(.externalDisplay) }
+                ) {
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                        Picker("", selection: $settings.externalDisplayMode) {
+                            ForEach(ExternalDisplayMode.allCases) { mode in
+                                Text(mode.label).tag(mode)
+                            }
                         }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
 
-                    Text(settings.externalDisplayMode.description)
-                        .foregroundStyle(theme.color(.textSecondary))
-                        .fcTypography(.caption)
+                        Text(settings.externalDisplayMode.description)
+                            .foregroundStyle(theme.color(.textSecondary))
+                            .fcTypography(.caption)
+                    }
                 }
             }
 
@@ -1036,12 +1156,18 @@ struct SettingsView: View {
             }
 
             FCSettingsSectionCard(title: "Remote Connection", subtitle: "Use your phone or TV browser on the same Wi-Fi network.") {
-                Toggle(isOn: $settings.browserServerEnabled) {
-                    Text("Enable Remote Connection")
-                        .foregroundStyle(theme.color(.textPrimary))
-                        .fcTypography(.label)
+                FCProLockedRow(
+                    title: "",
+                    isLocked: !entitlements.canEnable(.browserRemote) && !settings.browserServerEnabled,
+                    onUpgrade: { onBlockedFeature(.browserRemote) }
+                ) {
+                    Toggle(isOn: $settings.browserServerEnabled) {
+                        Text("Enable Remote Connection")
+                            .foregroundStyle(theme.color(.textPrimary))
+                            .fcTypography(.label)
+                    }
+                    .toggleStyle(.switch)
                 }
-                .toggleStyle(.switch)
             }
 
             if settings.browserServerEnabled {
@@ -1324,6 +1450,10 @@ struct SettingsView: View {
         localIP = BrowserServer.localIPAddress() ?? "localhost"
         browserPortInput = String(settings.browserServerPort)
         validateBrowserPortInput(browserPortInput)
+        lastAllowedOverlayMode = settings.overlayMode
+        lastAllowedListeningMode = settings.listeningMode
+        lastAllowedSpeechBackend = settings.speechBackend
+        lastAllowedExternalDisplayMode = settings.externalDisplayMode
     }
 
     private func validateBrowserPortInput(_ value: String) {
@@ -1374,6 +1504,7 @@ struct SettingsView: View {
         settings.browserServerPort = 7373
         settings.llmResyncEnabled = false
         settings.refinementModel = "gpt-4o"
+        entitlements.enforceAllowedSettings()
 
         browserPortInput = String(settings.browserServerPort)
         validateBrowserPortInput(browserPortInput)

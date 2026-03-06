@@ -6,13 +6,17 @@
 import SwiftUI
 
 struct DraftSessionView: View {
-    @Environment(\.dismiss) private var dismiss
     @State private var draftService = ScriptDraftService()
+    @State private var entitlements = EntitlementService.shared
     @State private var editableTranscript: String = ""
     @State private var phase: Phase = .recording
 
-    /// Called when the user accepts a script (raw or refined).
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var onAccept: (String) -> Void
+    var onClose: () -> Void
+    var onBlockedFeature: (FeatureGate) -> Void
 
     enum Phase {
         case recording
@@ -21,49 +25,48 @@ struct DraftSessionView: View {
     }
 
     var body: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Text(headerTitle)
-                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(theme.color(.textPrimary))
+                    .fcTypography(.heading)
                 Spacer()
                 if phase == .recording {
-                    // Recording indicator
                     HStack(spacing: 6) {
                         Circle()
-                            .fill(.red)
+                            .fill(theme.color(.stateError))
                             .frame(width: 8, height: 8)
                         Text("Recording")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.red)
+                            .fcTypography(.caption)
+                            .foregroundStyle(theme.color(.stateError))
                     }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 10)
+            .padding(.horizontal, FCSpacingToken.s16.rawValue)
+            .padding(.top, FCSpacingToken.s16.rawValue)
+            .padding(.bottom, FCSpacingToken.s12.rawValue)
 
             Divider()
 
-            // Content
             switch phase {
             case .recording:
-                recordingView
+                recordingView(theme: theme)
             case .review:
-                reviewView
+                reviewView(theme: theme)
             case .refined:
-                refinedView
+                refinedView(theme: theme)
             }
 
             Divider()
 
-            // Actions
-            actionBar
-                .padding(12)
+            actionBar(theme: theme)
+                .padding(FCSpacingToken.s12.rawValue)
         }
         .frame(width: 480)
         .frame(minHeight: 400, maxHeight: 600)
-        .background(.ultraThinMaterial)
+        .background(theme.material(.card))
         .onAppear {
             draftService.startRecording()
         }
@@ -90,18 +93,16 @@ struct DraftSessionView: View {
         }
     }
 
-    // MARK: - Recording Phase
-
-    private var recordingView: some View {
-        VStack(spacing: 12) {
-            // Live transcript
+    @ViewBuilder
+    private func recordingView(theme: FCTheme) -> some View {
+        VStack(spacing: FCSpacingToken.s12.rawValue) {
             ScrollViewReader { proxy in
                 ScrollView {
-                    Text(draftService.rawTranscript.isEmpty ? "Start speaking…" : draftService.rawTranscript)
-                        .font(.system(size: 14, design: .rounded))
-                        .foregroundStyle(draftService.rawTranscript.isEmpty ? .tertiary : .primary)
+                    Text(draftService.rawTranscript.isEmpty ? "Start speaking\u{2026}" : draftService.rawTranscript)
+                        .fcTypography(.bodyM)
+                        .foregroundStyle(draftService.rawTranscript.isEmpty ? theme.color(.textTertiary) : theme.color(.textPrimary))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
+                        .padding(FCSpacingToken.s12.rawValue)
                         .id("transcript")
                 }
                 .onChange(of: draftService.rawTranscript) { _, _ in
@@ -112,59 +113,57 @@ struct DraftSessionView: View {
             }
             .frame(maxHeight: .infinity)
 
-            // Audio level bars
             HStack(spacing: 2) {
                 ForEach(Array(draftService.audioLevels.enumerated()), id: \.offset) { _, level in
                     RoundedRectangle(cornerRadius: 1.5)
-                        .fill(Color.red.opacity(0.7))
+                        .fill(theme.color(.stateError).opacity(0.7))
                         .frame(width: 3, height: max(2, level * 24))
                 }
             }
             .frame(height: 28)
             .animation(.easeOut(duration: 0.1), value: draftService.audioLevels)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
+            .padding(.horizontal, FCSpacingToken.s16.rawValue)
+            .padding(.bottom, FCSpacingToken.s8.rawValue)
         }
     }
 
-    // MARK: - Review Phase
-
-    private var reviewView: some View {
-        VStack(spacing: 8) {
+    @ViewBuilder
+    private func reviewView(theme: FCTheme) -> some View {
+        VStack(spacing: FCSpacingToken.s8.rawValue) {
             Text("Edit your transcript, then use it directly or refine with AI.")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
+                .fcTypography(.caption)
+                .foregroundStyle(theme.color(.textSecondary))
+                .padding(.horizontal, FCSpacingToken.s16.rawValue)
+                .padding(.top, FCSpacingToken.s8.rawValue)
 
             TextEditor(text: $editableTranscript)
-                .font(.system(size: 14, design: .rounded))
+                .fcTypography(.bodyM)
                 .scrollContentBackground(.hidden)
-                .padding(8)
+                .padding(FCSpacingToken.s8.rawValue)
                 .frame(maxHeight: .infinity)
         }
     }
 
-    // MARK: - Refined Phase
-
-    private var refinedView: some View {
+    @ViewBuilder
+    private func refinedView(theme: FCTheme) -> some View {
         Group {
             if draftService.isRefining {
-                VStack(spacing: 12) {
+                VStack(spacing: FCSpacingToken.s12.rawValue) {
                     Spacer()
                     ProgressView()
                         .controlSize(.large)
-                    Text("Refining your script…")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
+                    Text("Refining your script\u{2026}")
+                        .fcTypography(.label)
+                        .foregroundStyle(theme.color(.textSecondary))
                     Spacer()
                 }
             } else {
                 ScrollView {
                     Text(draftService.refinedText)
-                        .font(.system(size: 14, design: .rounded))
+                        .fcTypography(.bodyM)
+                        .foregroundStyle(theme.color(.textPrimary))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
+                        .padding(FCSpacingToken.s12.rawValue)
                         .textSelection(.enabled)
                 }
                 .frame(maxHeight: .infinity)
@@ -172,16 +171,15 @@ struct DraftSessionView: View {
         }
     }
 
-    // MARK: - Action Bar
-
-    private var actionBar: some View {
+    @ViewBuilder
+    private func actionBar(theme: FCTheme) -> some View {
         HStack {
             Button("Cancel") {
                 draftService.stopRecording()
-                dismiss()
+                onClose()
             }
             .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(theme.color(.textTertiary))
 
             Spacer()
 
@@ -190,7 +188,7 @@ struct DraftSessionView: View {
                 Button {
                     draftService.stopRecording()
                     editableTranscript = draftService.rawTranscript
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(theme.animation(.base)) {
                         phase = .review
                     }
                 } label: {
@@ -198,30 +196,33 @@ struct DraftSessionView: View {
                         Image(systemName: "stop.fill")
                             .font(.system(size: 10))
                         Text("Stop")
-                            .font(.system(size: 13, weight: .medium))
+                            .fcTypography(.label)
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.red)
+                .tint(theme.color(.stateError))
                 .controlSize(.regular)
                 .disabled(draftService.rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             case .review:
-                HStack(spacing: 8) {
+                HStack(spacing: FCSpacingToken.s8.rawValue) {
                     Button {
                         onAccept(editableTranscript)
-                        dismiss()
+                        onClose()
                     } label: {
                         Text("Use as Script")
-                            .font(.system(size: 13, weight: .medium))
+                            .fcTypography(.label)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.regular)
 
                     Button {
-                        // Update the service's raw transcript with edits, then refine
+                        guard entitlements.has(.aiRefinement) else {
+                            onBlockedFeature(.aiRefinement)
+                            return
+                        }
                         draftService.rawTranscript = editableTranscript
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(theme.animation(.base)) {
                             phase = .refined
                         }
                         draftService.refine()
@@ -230,7 +231,18 @@ struct DraftSessionView: View {
                             Image(systemName: "sparkles")
                                 .font(.system(size: 11))
                             Text("Refine with AI")
-                                .font(.system(size: 13, weight: .medium))
+                                .fcTypography(.label)
+                            if !entitlements.has(.aiRefinement) {
+                                Text("Pro")
+                                    .fcTypography(.caption)
+                                    .foregroundStyle(theme.color(.accentPrimary))
+                                    .padding(.horizontal, FCSpacingToken.s4.rawValue)
+                                    .padding(.vertical, 2)
+                                    .background(
+                                        Capsule(style: .continuous)
+                                            .fill(theme.color(.accentPrimary).opacity(0.14))
+                                    )
+                            }
                         }
                     }
                     .buttonStyle(.borderedProminent)
@@ -239,27 +251,27 @@ struct DraftSessionView: View {
                 }
 
             case .refined:
-                HStack(spacing: 8) {
+                HStack(spacing: FCSpacingToken.s8.rawValue) {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(theme.animation(.base)) {
                             phase = .review
                         }
                     } label: {
                         Text("Back")
-                            .font(.system(size: 13, weight: .medium))
+                            .fcTypography(.label)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.regular)
 
                     Button {
                         onAccept(draftService.refinedText)
-                        dismiss()
+                        onClose()
                     } label: {
                         HStack(spacing: 5) {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 11, weight: .semibold))
                             Text("Use This")
-                                .font(.system(size: 13, weight: .medium))
+                                .fcTypography(.label)
                         }
                     }
                     .buttonStyle(.borderedProminent)

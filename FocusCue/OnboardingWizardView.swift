@@ -66,7 +66,9 @@ enum OnboardingPermissionKind: String, Hashable {
 enum OnboardingExitReason: Equatable {
     case skippedForNow
     case continueInSettings
+    case continueInLite
     case launchGuidedTemplate
+    case upgradeToPro
 }
 
 struct OnboardingDraft {
@@ -78,7 +80,7 @@ struct OnboardingDraft {
     var shouldResumeAfterSettings: Bool
 
     init(
-        listeningMode: ListeningMode = NotchSettings.shared.listeningMode,
+        listeningMode: ListeningMode = .wordTracking,
         overlayMode: OverlayMode = NotchSettings.shared.overlayMode,
         lastVisitedStep: OnboardingStep = .welcome,
         completedPermissions: Set<OnboardingPermissionKind> = [],
@@ -97,6 +99,8 @@ struct OnboardingDraft {
 struct OnboardingCompletion {
     let draft: OnboardingDraft
     let applyDraft: Bool
+    let shouldStartTrial: Bool
+    let shouldPresentUpgrade: Bool
     let launchGuidedTemplate: Bool
     let openedSettingsTab: SettingsTab?
     let completionReason: OnboardingExitReason
@@ -145,6 +149,7 @@ struct OnboardingWizardView: View {
 
     @StateObject private var permissions = PermissionCenter()
     @StateObject private var session: OnboardingSession
+    @State private var entitlements = EntitlementService.shared
     @State private var showDetourSettings = false
     @State private var detourSettingsTab: SettingsTab = .display
     @State private var pendingPermission: OnboardingPermissionKind?
@@ -198,6 +203,52 @@ struct OnboardingWizardView: View {
         }
     }
 
+    private enum ReadyStepEntitlementState {
+        case eligibleForTrial
+        case trialActive
+        case pro
+        case trialExpired
+    }
+
+    private var readyStepEntitlementState: ReadyStepEntitlementState {
+        if entitlements.hasLifetimePurchase {
+            return .pro
+        }
+        if entitlements.isTrialActive {
+            return .trialActive
+        }
+        if entitlements.hasStartedTrial {
+            return .trialExpired
+        }
+        return .eligibleForTrial
+    }
+
+    private var readyStepSubtitle: String {
+        switch readyStepEntitlementState {
+        case .eligibleForTrial:
+            return "Start your 14-day Pro trial now."
+        case .trialActive:
+            return "Your Pro trial is active."
+        case .pro:
+            return "FocusCue Pro is already unlocked on this Apple ID."
+        case .trialExpired:
+            return "Your previous 14-day trial has ended. Continue in Lite or unlock Pro."
+        }
+    }
+
+    private var readyStepNotice: (kind: FCSettingsNoticeKind, text: String) {
+        switch readyStepEntitlementState {
+        case .eligibleForTrial:
+            return (.info, "We'll start your trial and switch guidance to Word Tracking automatically.")
+        case .trialActive:
+            return (.success, "Your trial is active, so all Pro features are available right now.")
+        case .pro:
+            return (.success, "You're already on Pro. Start the guided template to test your setup.")
+        case .trialExpired:
+            return (.warning, "You can continue in Lite or unlock Pro to restore all premium workflows.")
+        }
+    }
+
     private var primaryActionTitle: String {
         switch currentStep {
         case .welcome:
@@ -211,7 +262,14 @@ struct OnboardingWizardView: View {
         case .speech:
             return permissionPrimaryActionTitle(for: .speechRecognition)
         case .ready:
-            return "Start Guided Template"
+            switch readyStepEntitlementState {
+            case .eligibleForTrial:
+                return "Start 14-Day Trial"
+            case .trialActive, .pro:
+                return "Start Guided Template"
+            case .trialExpired:
+                return "Continue in Lite"
+            }
         }
     }
 
@@ -249,11 +307,19 @@ struct OnboardingWizardView: View {
             SettingsView(
                 settings: NotchSettings.shared,
                 initialTab: detourSettingsTab,
-                launchedFromOnboarding: true
+                launchedFromOnboarding: true,
+                onUpgrade: { openUpgradeFromReadyStep() },
+                onRestorePurchases: { restorePurchasesFromSettings() },
+                onBlockedFeature: { _ in openUpgradeFromReadyStep() }
             )
         }
         .onAppear {
             permissions.refresh()
+            if entitlements.hasResolvedPurchaseState {
+                entitlements.refreshPresentationState()
+            } else {
+                entitlements.handleAppLaunch()
+            }
             session.persistLastVisitedStep()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -576,7 +642,7 @@ struct OnboardingWizardView: View {
                     .fcTypography(.titleL)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                Text(currentStep.subtitle)
+                Text(readyStepSubtitle)
                     .foregroundStyle(theme.color(.textSecondary))
                     .fcTypography(.bodyM)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -585,10 +651,7 @@ struct OnboardingWizardView: View {
 
             summaryCard(theme: theme)
 
-            FCSettingsInlineNotice(
-                kind: .success,
-                text: "You can adjust reading style, display surface, and advanced settings any time after the demo."
-            )
+            FCSettingsInlineNotice(kind: readyStepNotice.kind, text: readyStepNotice.text)
 
             Spacer(minLength: 0)
 
@@ -619,6 +682,19 @@ struct OnboardingWizardView: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(theme.color(.accentInfo))
                     .fcTypography(.bodyM)
+
+                    if readyStepEntitlementState == .trialExpired {
+                        Text("•")
+                            .foregroundStyle(theme.color(.textTertiary))
+                            .fcTypography(.bodyM)
+
+                        Button("Unlock Pro") {
+                            openUpgradeFromReadyStep()
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(theme.color(.accentCTA))
+                        .fcTypography(.bodyM)
+                    }
                 }
                 .frame(height: 32)
             }
@@ -947,7 +1023,18 @@ struct OnboardingWizardView: View {
         case .speech:
             handlePermissionPrimaryAction(.speechRecognition)
         case .ready:
-            launchGuidedTemplate()
+            handleReadyPrimaryAction()
+        }
+    }
+
+    private func handleReadyPrimaryAction() {
+        switch readyStepEntitlementState {
+        case .eligibleForTrial:
+            launchGuidedTemplate(shouldStartTrial: true)
+        case .trialActive, .pro:
+            launchGuidedTemplate(shouldStartTrial: false)
+        case .trialExpired:
+            continueInLite()
         }
     }
 
@@ -1032,6 +1119,8 @@ struct OnboardingWizardView: View {
             OnboardingCompletion(
                 draft: draft,
                 applyDraft: false,
+                shouldStartTrial: false,
+                shouldPresentUpgrade: false,
                 launchGuidedTemplate: false,
                 openedSettingsTab: nil,
                 completionReason: .skippedForNow,
@@ -1045,6 +1134,8 @@ struct OnboardingWizardView: View {
             OnboardingCompletion(
                 draft: draft,
                 applyDraft: true,
+                shouldStartTrial: false,
+                shouldPresentUpgrade: false,
                 launchGuidedTemplate: false,
                 openedSettingsTab: preferredSettingsTab,
                 completionReason: .continueInSettings,
@@ -1053,18 +1144,57 @@ struct OnboardingWizardView: View {
         )
     }
 
-    private func launchGuidedTemplate() {
+    private func continueInLite() {
+        finish(
+            OnboardingCompletion(
+                draft: draft,
+                applyDraft: true,
+                shouldStartTrial: false,
+                shouldPresentUpgrade: false,
+                launchGuidedTemplate: false,
+                openedSettingsTab: nil,
+                completionReason: .continueInLite,
+                markOnboardingComplete: true
+            )
+        )
+    }
+
+    private func launchGuidedTemplate(shouldStartTrial: Bool = false) {
         session.hasLaunchedGuidedTemplate = true
         finish(
             OnboardingCompletion(
                 draft: draft,
                 applyDraft: true,
+                shouldStartTrial: shouldStartTrial,
+                shouldPresentUpgrade: false,
                 launchGuidedTemplate: true,
                 openedSettingsTab: nil,
                 completionReason: .launchGuidedTemplate,
                 markOnboardingComplete: true
             )
         )
+    }
+
+    private func openUpgradeFromReadyStep() {
+        finish(
+            OnboardingCompletion(
+                draft: draft,
+                applyDraft: true,
+                shouldStartTrial: false,
+                shouldPresentUpgrade: true,
+                launchGuidedTemplate: false,
+                openedSettingsTab: nil,
+                completionReason: .upgradeToPro,
+                markOnboardingComplete: true
+            )
+        )
+    }
+
+    private func restorePurchasesFromSettings() {
+        Task {
+            await entitlements.restorePurchases()
+            entitlements.refreshPresentationState()
+        }
     }
 
     private func presentSettingsDetour(tab: SettingsTab) {
