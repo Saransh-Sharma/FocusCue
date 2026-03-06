@@ -184,7 +184,7 @@ struct FCTierBadge: View {
     }
 }
 
-struct FCEntitlementStatusCard: View {
+struct FCInlineEntitlementWidget: View {
     @Bindable var entitlements: EntitlementService
     let onUpgrade: () -> Void
     let onRestore: () -> Void
@@ -192,127 +192,117 @@ struct FCEntitlementStatusCard: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var accent: FCColorToken {
-        switch entitlements.brandState {
-        case .checking:
-            return .accentInfo
-        case .lite:
-            return .stateWarning
-        case .proTrial:
-            return .accentPrimary
-        case .pro:
-            return .stateSuccess
-        }
-    }
-
     var body: some View {
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
 
-        FCGlassPanel(emphasized: true) {
-            VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
-                HStack(alignment: .firstTextBaseline, spacing: FCSpacingToken.s12.rawValue) {
-                    VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
-                        Text(entitlements.statusHeadline)
-                            .foregroundStyle(theme.color(.textPrimary))
-                            .fcTypography(.heading)
-                        Text(entitlements.statusDetail)
-                            .foregroundStyle(theme.color(.textSecondary))
-                            .fcTypography(.bodyM)
-                    }
-                    Spacer()
-                    FCTierBadge(brandState: entitlements.brandState)
-                }
+        switch entitlements.brandState {
+        case .lite:
+            liteWidget(theme: theme)
+        case .proTrial(let daysRemaining):
+            trialWidget(theme: theme, daysRemaining: daysRemaining)
+        case .checking, .pro:
+            FCTierBadge(brandState: entitlements.brandState)
+        }
+    }
 
-                if entitlements.tier == .trial {
-                    VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
-                        GeometryReader { proxy in
-                            let progress = CGFloat(Double(entitlements.daysUsed) / 14.0)
-                            ZStack(alignment: .leading) {
-                                Capsule(style: .continuous)
-                                    .fill(theme.color(.accentPrimary).opacity(0.12))
-                                Capsule(style: .continuous)
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [theme.color(.accentPrimary), theme.color(.accentInfo)],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
-                                    .frame(width: max(18, proxy.size.width * progress))
-                            }
-                        }
-                        .frame(height: 8)
-
-                        HStack {
-                            Text("\(entitlements.daysUsed) of 14 days used")
-                                .foregroundStyle(theme.color(.textTertiary))
-                                .fcTypography(.caption)
-                            Spacer()
-                            Text("\(entitlements.daysRemaining) remaining")
-                                .foregroundStyle(theme.color(.accentPrimary))
-                                .fcTypography(.caption)
-                        }
-                    }
-                }
-
-                Text(entitlements.statusFootnote)
-                    .foregroundStyle(theme.color(.textSecondary))
+    @ViewBuilder
+    private func liteWidget(theme: FCTheme) -> some View {
+        HStack(spacing: FCSpacingToken.s8.rawValue) {
+            FCTierBadge(brandState: .lite)
+            upgradePill(theme: theme)
+            Button(action: onRestore) {
+                Text("Restore")
                     .fcTypography(.caption)
+                    .foregroundStyle(theme.color(.textTertiary))
+            }
+            .buttonStyle(.plain)
+        }
+    }
 
-                HStack(spacing: FCSpacingToken.s8.rawValue) {
-                    if entitlements.tier != .pro {
-                        Button(action: onUpgrade) {
-                            HStack(spacing: FCSpacingToken.s8.rawValue) {
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 12, weight: .semibold))
-                                Text("Upgrade to Pro")
-                                    .fcTypography(.label)
-                            }
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity, minHeight: 36)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [
-                                                theme.color(.accentPrimary).opacity(0.90),
-                                                theme.color(.accentInfo),
-                                            ],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
-                            )
-                            .overlay(
-                                Capsule(style: .continuous)
-                                    .stroke(Color.white.opacity(0.18), lineWidth: FCStrokeToken.thin.rawValue)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
+    @ViewBuilder
+    private func trialWidget(theme: FCTheme, daysRemaining: Int) -> some View {
+        VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Pro Trial")
+                    .fcTypography(.label)
+                    .foregroundStyle(theme.color(.textPrimary))
+                Spacer()
+                Text("\(daysRemaining) day\(daysRemaining == 1 ? "" : "s") remaining")
+                    .fcTypography(.caption)
+                    .foregroundStyle(theme.color(.accentPrimary))
+            }
 
-                    Button(action: onRestore) {
-                        Text("Restore Purchases")
-                            .fcTypography(.label)
-                            .foregroundStyle(theme.color(.textSecondary))
-                            .frame(maxWidth: .infinity, minHeight: 36)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(theme.color(.surfaceGlass))
+            GeometryReader { proxy in
+                let progress = CGFloat(Double(entitlements.daysUsed) / 14.0)
+                ZStack(alignment: .leading) {
+                    Capsule(style: .continuous)
+                        .fill(theme.color(.accentPrimary).opacity(0.12))
+                    Capsule(style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [theme.color(.accentPrimary), theme.color(.accentInfo)],
+                                startPoint: .leading,
+                                endPoint: .trailing
                             )
-                            .overlay(
-                                Capsule(style: .continuous)
-                                    .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
-                            )
-                    }
-                    .buttonStyle(.plain)
+                        )
+                        .frame(width: max(8, proxy.size.width * progress))
                 }
             }
+            .frame(height: 5)
+            .clipShape(Capsule(style: .continuous))
+
+            HStack(spacing: FCSpacingToken.s8.rawValue) {
+                upgradePill(theme: theme)
+
+                Button(action: onRestore) {
+                    Text("Restore")
+                        .fcTypography(.caption)
+                        .foregroundStyle(theme.color(.textTertiary))
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .overlay(
-            RoundedRectangle(cornerRadius: FCShapeToken.radius18.rawValue, style: .continuous)
-                .stroke(theme.color(accent).opacity(0.18), lineWidth: FCStrokeToken.thin.rawValue)
+        .padding(.horizontal, FCSpacingToken.s12.rawValue)
+        .padding(.vertical, FCSpacingToken.s8.rawValue)
+        .frame(width: 240)
+        .background(
+            RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                .fill(theme.material(.card))
         )
+        .background(
+            RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                .fill(theme.color(.surfaceGlass))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
+                .stroke(theme.color(.accentPrimary).opacity(0.16), lineWidth: FCStrokeToken.thin.rawValue)
+        )
+    }
+
+    @ViewBuilder
+    private func upgradePill(theme: FCTheme) -> some View {
+        Button(action: onUpgrade) {
+            HStack(spacing: 4) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("Upgrade to Pro")
+                    .fcTypography(.caption)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, FCSpacingToken.s12.rawValue)
+            .padding(.vertical, 5)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [theme.color(.accentPrimary), theme.color(.accentInfo)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 

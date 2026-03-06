@@ -106,17 +106,11 @@ Happy presenting! [wave]
             VStack(alignment: .leading, spacing: mainStackSpacing) {
                 FCWindowHeader(
                     subtitle: "Stay on script. Stay on camera. Stay natural.",
-                    brandState: entitlements.brandState,
-                    compact: isCompactLayout
+                    entitlements: entitlements,
+                    compact: isCompactLayout,
+                    onUpgrade: { presentPaywall(.generalAccess) },
+                    onRestore: { restorePurchases() }
                 )
-
-                if entitlements.tier != .pro {
-                    FCEntitlementStatusCard(
-                        entitlements: entitlements,
-                        onUpgrade: { presentPaywall(.generalAccess) },
-                        onRestore: { restorePurchases() }
-                    )
-                }
 
                 if isCompactLayout {
                     VStack(alignment: .leading, spacing: mainStackSpacing) {

@@ -84,8 +84,10 @@ struct FCGlassPanel<Content: View>: View {
 
 struct FCWindowHeader: View {
     let subtitle: String
-    let brandState: BrandState
+    @Bindable var entitlements: EntitlementService
     var compact: Bool = false
+    var onUpgrade: () -> Void = {}
+    var onRestore: () -> Void = {}
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -116,7 +118,11 @@ struct FCWindowHeader: View {
                 }
                 .layoutPriority(1)
                 Spacer()
-                FCTierBadge(brandState: brandState)
+                FCInlineEntitlementWidget(
+                    entitlements: entitlements,
+                    onUpgrade: onUpgrade,
+                    onRestore: onRestore
+                )
             }
         }
     }
