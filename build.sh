@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-SCHEME="FocusCue"
+SCHEME="FocusCue Direct Release"
+CONFIGURATION="DirectRelease"
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$PROJECT_DIR/build/release"
 ARCHIVE_ARM="$BUILD_DIR/FocusCue-arm64.xcarchive"
@@ -20,7 +21,7 @@ echo "🔨 Building for Apple Silicon (arm64)…"
 xcodebuild archive \
   -project "$PROJECT_DIR/FocusCue.xcodeproj" \
   -scheme "$SCHEME" \
-  -configuration Release \
+  -configuration "$CONFIGURATION" \
   -archivePath "$ARCHIVE_ARM" \
   -destination "generic/platform=macOS" \
   CODE_SIGNING_ALLOWED=NO \
@@ -34,7 +35,7 @@ echo "🔨 Building for Intel (x86_64)…"
 xcodebuild archive \
   -project "$PROJECT_DIR/FocusCue.xcodeproj" \
   -scheme "$SCHEME" \
-  -configuration Release \
+  -configuration "$CONFIGURATION" \
   -archivePath "$ARCHIVE_X86" \
   -destination "generic/platform=macOS" \
   CODE_SIGNING_ALLOWED=NO \

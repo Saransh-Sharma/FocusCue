@@ -36,8 +36,8 @@ jobs:
         run: |
           xcodebuild build \
             -project FocusCue.xcodeproj \
-            -scheme FocusCue \
-            -configuration Release \
+            -scheme "FocusCue Direct Release" \
+            -configuration DirectRelease \
             -derivedDataPath build \
             -destination "platform=macOS" \
             CODE_SIGNING_ALLOWED=NO \
@@ -46,7 +46,7 @@ jobs:
       - name: Sign app
         shell: bash
         run: |
-          APP_PATH="build/Build/Products/Release/FocusCue.app"
+          APP_PATH="build/Build/Products/DirectRelease/FocusCue.app"
           ENTITLEMENTS="FocusCue/FocusCue.entitlements"
 
           echo "Available identities:"
@@ -73,7 +73,7 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          APP_PATH="build/Build/Products/Release/FocusCue.app"
+          APP_PATH="build/Build/Products/DirectRelease/FocusCue.app"
           ZIP_PATH=$RUNNER_TEMP/FocusCue.zip
 
           ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
@@ -101,7 +101,7 @@ jobs:
       - name: Create DMG
         shell: bash
         run: |
-          APP_PATH="build/Build/Products/Release/FocusCue.app"
+          APP_PATH="build/Build/Products/DirectRelease/FocusCue.app"
           DMG_NAME="FocusCue-${GITHUB_REF_NAME}.dmg"
 
           mkdir -p dmg-staging

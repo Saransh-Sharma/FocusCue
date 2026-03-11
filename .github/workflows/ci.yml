@@ -16,12 +16,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build
+      - name: Build App Store Debug
         run: |
           xcodebuild build \
             -project FocusCue.xcodeproj \
             -scheme FocusCue \
             -configuration Debug \
+            -destination "platform=macOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet
+
+      - name: Build Direct Debug
+        run: |
+          xcodebuild build \
+            -project FocusCue.xcodeproj \
+            -scheme "FocusCue Direct Debug" \
+            -configuration DirectDebug \
             -destination "platform=macOS" \
             CODE_SIGNING_ALLOWED=NO \
             -quiet
