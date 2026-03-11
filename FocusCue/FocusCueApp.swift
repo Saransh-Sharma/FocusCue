@@ -37,12 +37,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         _ = EntitlementService.shared
         EntitlementService.shared.handleAppLaunch()
 
+#if DEBUG
+        NSLog(
+            "FocusCue distribution features: updater=%@ cloudSpeech=%@ openAI=%@ browserRemote=%@",
+            DistributionFeatures.externalUpdaterEnabled.description,
+            DistributionFeatures.cloudSpeechEnabled.description,
+            DistributionFeatures.openAIFeaturesEnabled.description,
+            DistributionFeatures.browserRemoteEnabled.description
+        )
+#endif
+
         if FocusCueService.shared.launchedExternally {
             FocusCueService.shared.hideMainWindow()
         }
 
-        // Silent update check on launch
-        UpdateChecker.shared.checkForUpdates(silent: true)
+        if DistributionFeatures.externalUpdaterEnabled {
+            UpdateChecker.shared.checkForUpdates(silent: true)
+        }
 
         // Start browser server if enabled
         FocusCueService.shared.updateBrowserServer()
@@ -144,9 +155,11 @@ struct FocusCueApp: App {
                 Button("About FocusCue") {
                     NotificationCenter.default.post(name: .openAbout, object: nil)
                 }
-                Divider()
-                Button("Check for Updates…") {
-                    UpdateChecker.shared.checkForUpdates()
+                if DistributionFeatures.externalUpdaterEnabled {
+                    Divider()
+                    Button("Check for Updates…") {
+                        UpdateChecker.shared.checkForUpdates()
+                    }
                 }
             }
             CommandGroup(after: .appSettings) {

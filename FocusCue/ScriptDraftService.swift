@@ -35,7 +35,7 @@ final class ScriptDraftService {
         deepgramSegments = []
 
         let settings = NotchSettings.shared
-        if settings.speechBackend == .deepgram {
+        if DistributionFeatures.cloudSpeechEnabled && settings.speechBackend == .deepgram {
             let apiKey = settings.deepgramAPIKey
             guard !apiKey.isEmpty else {
                 error = "Deepgram API key not set. Open Settings → Guidance to add your key."
@@ -324,6 +324,11 @@ final class ScriptDraftService {
     // MARK: - AI Refinement
 
     func refine() {
+        guard DistributionFeatures.openAIFeaturesEnabled else {
+            error = "Script refinement is unavailable in this build."
+            return
+        }
+
         let transcript = rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !transcript.isEmpty else {
             error = "Nothing to refine — transcript is empty."

@@ -456,7 +456,12 @@ struct SettingsView: View {
             }
         }
         .onChange(of: settings.speechBackend) { _, newValue in
-            if entitlements.tier == .lite && newValue == .deepgram {
+            if !DistributionFeatures.cloudSpeechEnabled {
+                if newValue != .apple {
+                    settings.speechBackend = .apple
+                }
+                lastAllowedSpeechBackend = .apple
+            } else if entitlements.tier == .lite && newValue == .deepgram {
                 settings.speechBackend = lastAllowedSpeechBackend == .deepgram ? .apple : lastAllowedSpeechBackend
                 onBlockedFeature(.deepgramBackend)
             } else {
@@ -464,7 +469,11 @@ struct SettingsView: View {
             }
         }
         .onChange(of: settings.llmResyncEnabled) { _, isEnabled in
-            if entitlements.tier == .lite && isEnabled {
+            if !DistributionFeatures.openAIFeaturesEnabled {
+                if isEnabled {
+                    settings.llmResyncEnabled = false
+                }
+            } else if entitlements.tier == .lite && isEnabled {
                 settings.llmResyncEnabled = false
                 onBlockedFeature(.smartResync)
             }
@@ -563,7 +572,7 @@ struct SettingsView: View {
                 kind: .info,
                 text: entitlements.tier == .trial
                     ? entitlements.statusFootnote
-                    : "Lite keeps core settings available, while Word Tracking, fullscreen, external output, browser remote, and advanced AI workflows are Pro."
+                    : "Lite keeps core settings available, while Word Tracking, fullscreen, external output, browser remote, PPTX import, and automatic page turns are Pro."
             )
         }
     }
@@ -971,81 +980,95 @@ struct SettingsView: View {
                 }
             }
 
-            FCSettingsSectionCard(title: "Speech Backend") {
-                VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
-                    Picker("", selection: $settings.speechBackend) {
-                        ForEach(entitlements.availableSpeechBackends(current: settings.speechBackend)) { backend in
-                            Text(backend.label).tag(backend)
+            if DistributionFeatures.speechBackendSelectionVisible {
+                FCSettingsSectionCard(title: "Speech Backend") {
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
+                        Picker("", selection: $settings.speechBackend) {
+                            ForEach(entitlements.availableSpeechBackends(current: settings.speechBackend)) { backend in
+                                Text(backend.label).tag(backend)
+                            }
                         }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
 
-                    Text(settings.speechBackend.description)
+                        Text(settings.speechBackend.description)
+                            .foregroundStyle(theme.color(.textSecondary))
+                            .fcTypography(.caption)
+                    }
+                }
+            } else {
+                FCSettingsSectionCard(title: "Speech Recognition") {
+                    Text("FocusCue uses Apple's built-in on-device speech recognition in this build.")
                         .foregroundStyle(theme.color(.textSecondary))
                         .fcTypography(.caption)
                 }
             }
 
-            FCSettingsSectionCard(title: "Provider Keys", subtitle: "Stored securely in Keychain.") {
-                VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
-                    if settings.speechBackend == .deepgram {
-                        providerKeyField(
-                            title: "Deepgram API Key",
-                            placeholder: "Paste your Deepgram API key",
-                            text: Binding(
-                                get: { settings.deepgramAPIKey },
-                                set: { settings.deepgramAPIKey = $0 }
-                            ),
-                            helpText: "Get a free API key",
-                            helpURL: URL(string: "https://console.deepgram.com")!
-                        )
-                    }
+            if DistributionFeatures.providerKeysVisible {
+                FCSettingsSectionCard(title: "Provider Keys", subtitle: "Stored securely in Keychain.") {
+                    VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                        if DistributionFeatures.cloudSpeechEnabled && settings.speechBackend == .deepgram {
+                            providerKeyField(
+                                title: "Deepgram API Key",
+                                placeholder: "Paste your Deepgram API key",
+                                text: Binding(
+                                    get: { settings.deepgramAPIKey },
+                                    set: { settings.deepgramAPIKey = $0 }
+                                ),
+                                helpText: "Get a free API key",
+                                helpURL: URL(string: "https://console.deepgram.com")!
+                            )
+                        }
 
-                    providerKeyField(
-                        title: "OpenAI API Key",
-                        placeholder: "Paste your OpenAI API key",
-                        text: Binding(
-                            get: { settings.openaiAPIKey },
-                            set: { settings.openaiAPIKey = $0 }
-                        ),
-                        description: "Used for Smart Resync and script refinement.",
-                        helpText: "Get an API key",
-                        helpURL: URL(string: "https://platform.openai.com/api-keys")!
-                    )
+                        if DistributionFeatures.openAIFeaturesEnabled {
+                            providerKeyField(
+                                title: "OpenAI API Key",
+                                placeholder: "Paste your OpenAI API key",
+                                text: Binding(
+                                    get: { settings.openaiAPIKey },
+                                    set: { settings.openaiAPIKey = $0 }
+                                ),
+                                description: "Used for Smart Resync and script refinement.",
+                                helpText: "Get an API key",
+                                helpURL: URL(string: "https://platform.openai.com/api-keys")!
+                            )
+                        }
+                    }
                 }
             }
 
-            FCSettingsSectionCard(title: "Smart Resync") {
-                FCProLockedRow(
-                    title: "",
-                    isLocked: !entitlements.canEnable(.smartResync) && !settings.llmResyncEnabled,
-                    onUpgrade: { onBlockedFeature(.smartResync) }
-                ) {
-                    VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
-                        Toggle(isOn: $settings.llmResyncEnabled) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Enable Smart Resync")
-                                    .foregroundStyle(theme.color(.textPrimary))
-                                    .fcTypography(.label)
-                                Text("Uses AI to re-sync the teleprompter when you paraphrase or go off-script.")
+            if DistributionFeatures.smartResyncVisible {
+                FCSettingsSectionCard(title: "Smart Resync") {
+                    FCProLockedRow(
+                        title: "",
+                        isLocked: !entitlements.canEnable(.smartResync) && !settings.llmResyncEnabled,
+                        onUpgrade: { onBlockedFeature(.smartResync) }
+                    ) {
+                        VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
+                            Toggle(isOn: $settings.llmResyncEnabled) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Enable Smart Resync")
+                                        .foregroundStyle(theme.color(.textPrimary))
+                                        .fcTypography(.label)
+                                    Text("Uses AI to re-sync the teleprompter when you paraphrase or go off-script.")
+                                        .foregroundStyle(theme.color(.textSecondary))
+                                        .fcTypography(.caption)
+                                }
+                            }
+                            .toggleStyle(.switch)
+
+                            VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
+                                Text("Refinement Model")
                                     .foregroundStyle(theme.color(.textSecondary))
                                     .fcTypography(.caption)
+                                Picker("", selection: $settings.refinementModel) {
+                                    Text("GPT-4o").tag("gpt-4o")
+                                    Text("GPT-4o Mini").tag("gpt-4o-mini")
+                                    Text("GPT-5.2").tag("gpt-5.2")
+                                }
+                                .labelsHidden()
+                                .frame(width: 200)
                             }
-                        }
-                        .toggleStyle(.switch)
-
-                        VStack(alignment: .leading, spacing: FCSpacingToken.s4.rawValue) {
-                            Text("Refinement Model")
-                                .foregroundStyle(theme.color(.textSecondary))
-                                .fcTypography(.caption)
-                            Picker("", selection: $settings.refinementModel) {
-                                Text("GPT-4o").tag("gpt-4o")
-                                Text("GPT-4o Mini").tag("gpt-4o-mini")
-                                Text("GPT-5.2").tag("gpt-5.2")
-                            }
-                            .labelsHidden()
-                            .frame(width: 200)
                         }
                     }
                 }

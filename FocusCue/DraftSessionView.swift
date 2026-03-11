@@ -93,6 +93,13 @@ struct DraftSessionView: View {
         }
     }
 
+    private var reviewSubtitle: String {
+        if DistributionFeatures.aiDraftRefinementVisible {
+            return "Edit your transcript, then use it directly or refine it into a cleaner script."
+        }
+        return "Edit your transcript, then use it directly as a script."
+    }
+
     @ViewBuilder
     private func recordingView(theme: FCTheme) -> some View {
         VStack(spacing: FCSpacingToken.s12.rawValue) {
@@ -130,7 +137,7 @@ struct DraftSessionView: View {
     @ViewBuilder
     private func reviewView(theme: FCTheme) -> some View {
         VStack(spacing: FCSpacingToken.s8.rawValue) {
-            Text("Edit your transcript, then use it directly or refine with AI.")
+            Text(reviewSubtitle)
                 .fcTypography(.caption)
                 .foregroundStyle(theme.color(.textSecondary))
                 .padding(.horizontal, FCSpacingToken.s16.rawValue)
@@ -216,38 +223,40 @@ struct DraftSessionView: View {
                     .buttonStyle(.bordered)
                     .controlSize(.regular)
 
-                    Button {
-                        guard entitlements.has(.aiRefinement) else {
-                            onBlockedFeature(.aiRefinement)
-                            return
-                        }
-                        draftService.rawTranscript = editableTranscript
-                        withAnimation(theme.animation(.base)) {
-                            phase = .refined
-                        }
-                        draftService.refine()
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 11))
-                            Text("Refine with AI")
-                                .fcTypography(.label)
-                            if !entitlements.has(.aiRefinement) {
-                                Text("Pro")
-                                    .fcTypography(.caption)
-                                    .foregroundStyle(theme.color(.accentPrimary))
-                                    .padding(.horizontal, FCSpacingToken.s4.rawValue)
-                                    .padding(.vertical, 2)
-                                    .background(
-                                        Capsule(style: .continuous)
-                                            .fill(theme.color(.accentPrimary).opacity(0.14))
-                                    )
+                    if DistributionFeatures.aiDraftRefinementVisible {
+                        Button {
+                            guard entitlements.has(.aiRefinement) else {
+                                onBlockedFeature(.aiRefinement)
+                                return
+                            }
+                            draftService.rawTranscript = editableTranscript
+                            withAnimation(theme.animation(.base)) {
+                                phase = .refined
+                            }
+                            draftService.refine()
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 11))
+                                Text("Refine Script")
+                                    .fcTypography(.label)
+                                if !entitlements.has(.aiRefinement) {
+                                    Text("Pro")
+                                        .fcTypography(.caption)
+                                        .foregroundStyle(theme.color(.accentPrimary))
+                                        .padding(.horizontal, FCSpacingToken.s4.rawValue)
+                                        .padding(.vertical, 2)
+                                        .background(
+                                            Capsule(style: .continuous)
+                                                .fill(theme.color(.accentPrimary).opacity(0.14))
+                                        )
+                                }
                             }
                         }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.regular)
+                        .disabled(editableTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
-                    .disabled(editableTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
 
             case .refined:

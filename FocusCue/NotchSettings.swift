@@ -446,7 +446,8 @@ class NotchSettings {
     static let maxHeight: CGFloat = 400
 
     init() {
-        self.speechBackend = SpeechBackend(rawValue: UserDefaults.standard.string(forKey: "speechBackend") ?? "") ?? .apple
+        let savedSpeechBackend = SpeechBackend(rawValue: UserDefaults.standard.string(forKey: "speechBackend") ?? "") ?? .apple
+        self.speechBackend = DistributionFeatures.cloudSpeechEnabled ? savedSpeechBackend : .apple
         let savedWidth = UserDefaults.standard.double(forKey: "notchWidth")
         let savedHeight = UserDefaults.standard.double(forKey: "textAreaHeight")
         self.notchWidth = savedWidth > 0 ? CGFloat(savedWidth) : Self.defaultWidth
@@ -481,7 +482,8 @@ class NotchSettings {
         self.browserServerEnabled = UserDefaults.standard.object(forKey: "browserServerEnabled") as? Bool ?? false
         let savedPort = UserDefaults.standard.integer(forKey: "browserServerPort")
         self.browserServerPort = savedPort > 0 ? UInt16(savedPort) : 7373
-        self.llmResyncEnabled = UserDefaults.standard.object(forKey: "llmResyncEnabled") as? Bool ?? false
+        let savedLLMResyncEnabled = UserDefaults.standard.object(forKey: "llmResyncEnabled") as? Bool ?? false
+        self.llmResyncEnabled = DistributionFeatures.openAIFeaturesEnabled ? savedLLMResyncEnabled : false
         self.refinementModel = UserDefaults.standard.string(forKey: "refinementModel") ?? "gpt-4o"
     }
 }

@@ -20,11 +20,23 @@ extension FeatureGate {
         case .wordTracking:
             return "Unlock Word Tracking"
         case .deepgramBackend:
+#if APP_STORE_BUILD
+            return "Unlock FocusCue Pro"
+#else
             return "Unlock Cloud Recognition"
+#endif
         case .smartResync:
+#if APP_STORE_BUILD
+            return "Unlock FocusCue Pro"
+#else
             return "Unlock Smart Resync"
+#endif
         case .aiRefinement:
+#if APP_STORE_BUILD
+            return "Unlock FocusCue Pro"
+#else
             return "Unlock AI Refinement"
+#endif
         case .pptxImport:
             return "Unlock PPTX Import"
         case .fullscreenOverlay:
@@ -49,11 +61,23 @@ extension FeatureGate {
         case .wordTracking:
             return "Real-time spoken-word highlighting is part of the Pro guidance toolkit."
         case .deepgramBackend:
+#if APP_STORE_BUILD
+            return "Browser remote, fullscreen playback, and multi-page delivery are unlocked in FocusCue Pro."
+#else
             return "Cloud speech recognition and Pro-grade accuracy upgrades are unlocked in Pro."
+#endif
         case .smartResync:
+#if APP_STORE_BUILD
+            return "Browser remote, fullscreen playback, and multi-page delivery are unlocked in FocusCue Pro."
+#else
             return "Smart Resync keeps you aligned when you paraphrase and is reserved for Pro."
+#endif
         case .aiRefinement:
+#if APP_STORE_BUILD
+            return "PPTX import, automatic page turns, and multi-page delivery are unlocked in FocusCue Pro."
+#else
             return "AI script cleanup and polishing are part of FocusCue Pro."
+#endif
         case .pptxImport:
             return "Importing presenter notes from PowerPoint is a Pro productivity workflow."
         case .fullscreenOverlay:
@@ -74,7 +98,7 @@ extension FeatureGate {
                 "External teleprompter and mirror outputs",
                 "Remote browser viewer",
                 "PPTX notes import",
-                "AI sync and refinement",
+                "Automatic page turns",
             ]
         case .multiPageEditing:
             return [
@@ -101,23 +125,47 @@ extension FeatureGate {
                 "Best-fit for high-precision reads",
             ]
         case .deepgramBackend:
+#if APP_STORE_BUILD
+            return [
+                "Word Tracking",
+                "Remote browser viewer",
+                "External display output",
+            ]
+#else
             return [
                 "Higher-accuracy cloud recognition",
                 "Better performance on complex reads",
                 "Full Pro guidance stack",
             ]
+#endif
         case .smartResync:
+#if APP_STORE_BUILD
+            return [
+                "Word Tracking",
+                "Automatic page turns",
+                "Full Pro guidance",
+            ]
+#else
             return [
                 "Recover after going off-script",
                 "Smoother live delivery",
                 "Advanced Pro guidance",
             ]
+#endif
         case .aiRefinement:
+#if APP_STORE_BUILD
+            return [
+                "Unlimited multi-page scripts",
+                "PPTX notes import",
+                "Faster prompt preparation",
+            ]
+#else
             return [
                 "Clean filler words",
                 "Polish raw transcripts into scripts",
                 "Faster draft-to-teleprompter workflow",
             ]
+#endif
         case .pptxImport:
             return [
                 "Convert presenter notes into pages",
@@ -483,9 +531,9 @@ struct FCTrialOfferSheet: View {
 
             VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
                 trialBullet(theme: theme, text: "Unlimited multi-page scripts")
-                trialBullet(theme: theme, text: "Word Tracking and Smart Resync")
+                trialBullet(theme: theme, text: "Word Tracking")
                 trialBullet(theme: theme, text: "External display and browser remote")
-                trialBullet(theme: theme, text: "PPTX import and AI refinement")
+                trialBullet(theme: theme, text: "PPTX import and automatic page turns")
             }
             .padding(FCSpacingToken.s16.rawValue)
             .background(
@@ -611,12 +659,11 @@ struct FCProUnlockedSheet: View {
     private let unlockedFeatures = [
         "Unlimited scripts",
         "Word Tracking",
-        "Smart Resync",
         "Fullscreen mode",
         "External display",
         "Browser remote",
         "PPTX import",
-        "AI refinement",
+        "Automatic page turns",
     ]
 
     private let gridColumns = [

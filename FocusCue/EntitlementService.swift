@@ -375,6 +375,7 @@ final class EntitlementService {
     }
 
     func decision(for feature: FeatureGate) -> AccessDecision {
+        guard DistributionFeatures.allows(feature) else { return .blocked(feature) }
         guard hasResolvedPurchaseState else { return .blocked(feature) }
         if hasProAccess {
             return .allowed
@@ -405,6 +406,10 @@ final class EntitlementService {
     }
 
     func availableSpeechBackends(current: SpeechBackend) -> [SpeechBackend] {
+        guard DistributionFeatures.cloudSpeechEnabled else {
+            let _ = current
+            return [.apple]
+        }
         guard hasResolvedPurchaseState else {
             return SpeechBackend.allCases
         }
@@ -543,10 +548,20 @@ final class EntitlementService {
     }
 
     func enforceAllowedSettings() {
+        let settings = NotchSettings.shared
+
+        if !DistributionFeatures.cloudSpeechEnabled, settings.speechBackend != .apple {
+            settings.speechBackend = .apple
+        }
+        if !DistributionFeatures.openAIFeaturesEnabled, settings.llmResyncEnabled {
+            settings.llmResyncEnabled = false
+        }
+        if !DistributionFeatures.browserRemoteEnabled, settings.browserServerEnabled {
+            settings.browserServerEnabled = false
+        }
+
         guard hasResolvedPurchaseState else { return }
         guard !hasProAccess else { return }
-
-        let settings = NotchSettings.shared
 
         if settings.listeningMode == .wordTracking {
             settings.listeningMode = .silencePaused

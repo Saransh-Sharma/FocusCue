@@ -820,6 +820,13 @@ class FocusCueService: NSObject {
     // MARK: - Browser server
 
     func updateBrowserServer() {
+        guard DistributionFeatures.browserRemoteEnabled else {
+            if browserServer.isRunning {
+                browserServer.stop()
+            }
+            return
+        }
+
         guard EntitlementService.shared.has(.browserRemote) else {
             if browserServer.isRunning {
                 browserServer.stop()

@@ -7,6 +7,15 @@
 
 import AppKit
 
+#if APP_STORE_BUILD
+class UpdateChecker {
+    static let shared = UpdateChecker()
+
+    func checkForUpdates(silent: Bool = false) {
+        let _ = silent
+    }
+}
+#else
 class UpdateChecker {
     static let shared = UpdateChecker()
 
@@ -108,3 +117,4 @@ class UpdateChecker {
         alert.runModal()
     }
 }
+#endif

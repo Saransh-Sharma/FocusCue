@@ -144,7 +144,7 @@ class SpeechRecognizer {
         startResyncTimer()
 
         let settings = NotchSettings.shared
-        if settings.speechBackend == .deepgram {
+        if DistributionFeatures.cloudSpeechEnabled && settings.speechBackend == .deepgram {
             let apiKey = settings.deepgramAPIKey
             guard !apiKey.isEmpty else {
                 error = "Deepgram API key not set. Open Settings → Guidance to add your key."
@@ -225,7 +225,7 @@ class SpeechRecognizer {
         matchStartOffset = recognizedCharCount
         shouldDismiss = false
         let settings = NotchSettings.shared
-        if settings.speechBackend == .deepgram {
+        if DistributionFeatures.cloudSpeechEnabled && settings.speechBackend == .deepgram {
             let apiKey = settings.deepgramAPIKey
             guard !apiKey.isEmpty else { return }
             beginDeepgramRecognition(apiKey: apiKey)
@@ -420,6 +420,11 @@ class SpeechRecognizer {
     // MARK: - Deepgram backend
 
     private func beginDeepgramRecognition(apiKey: String) {
+        guard DistributionFeatures.cloudSpeechEnabled else {
+            error = "Cloud speech recognition is unavailable in this build."
+            return
+        }
+
         cleanupRecognition()
 
         let streamer = DeepgramStreamer(
@@ -716,7 +721,8 @@ class SpeechRecognizer {
         guard wasSpeakingLastCheck, !currentlySpeaking else { return }
 
         let settings = NotchSettings.shared
-        guard settings.llmResyncEnabled,
+        guard DistributionFeatures.openAIFeaturesEnabled,
+              settings.llmResyncEnabled,
               !settings.openaiAPIKey.isEmpty,
               isListening,
               !sourceText.isEmpty,
