@@ -21,8 +21,10 @@ graph TD
     E["Speech + AI\nSpeechRecognizer + DeepgramStreamer + LLMResyncService + ScriptDraftService"]
     F["Persistence + Data\nWorkspacePersistence + DraftFileStore + SidebarModels"]
     G["Platform Integrations\nAppKit Panels, Keychain, Permissions, URL Scheme, Services"]
+    H["Distribution Gating\nDistributionFeatures + Build Configurations"]
 
-    A --> B
+    A --> H
+    H --> B
     B --> C
     C --> D
     C --> E
@@ -110,11 +112,26 @@ sequenceDiagram
 
 ## App lifecycle (launch, URL handling, window/menu behavior)
 
+## Distribution profiles and feature gating
+
+FocusCue now has two distribution families:
+
+- App Store builds: `FocusCue` scheme with `Debug` / `Release`
+- Direct-distribution builds: `FocusCue Direct Debug` / `FocusCue Direct Release`
+
+`DistributionFeatures` centralizes build-profile behavior such as:
+
+- updater visibility
+- Deepgram/OpenAI surface availability
+- App Store vs direct network posture
+
+This keeps the runtime feature surface aligned with the selected Xcode build configuration instead of relying on ad-hoc local run state.
+
 ### Launch path
 
 - `AppDelegate.applicationWillFinishLaunching` disables automatic window tabbing.
 - External URL launch can switch activation policy to accessory mode and hide main window.
-- `applicationDidFinishLaunching` registers services, performs silent update check, and starts browser server if enabled.
+- `applicationDidFinishLaunching` registers services, performs a silent update check only for direct-distribution builds, and starts browser server if enabled.
 
 ### URL and file handling
 
@@ -126,7 +143,7 @@ sequenceDiagram
 
 - Main window close action hides rather than destroys the window.
 - View/Window menus are removed from app menu for a constrained command surface.
-- App commands expose About, Check for Updates, Open/Save/Save As, Settings, and Getting Started.
+- App commands expose About, conditional Check for Updates, Open/Save/Save As, Settings, and Getting Started.
 
 ## Service-layer orchestration (`FocusCueService` as center)
 
@@ -180,10 +197,11 @@ Any workspace mutation should eventually pass through commit logic that performs
 FocusCue runs sandboxed with explicit entitlements for:
 - user-selected file read/write,
 - audio input,
-- network client/server,
+- network server in App Store builds,
+- network client/server in direct-distribution builds,
 - keychain access group.
 
-This keeps access scoped while enabling local persistence, microphone input, remote output server, and API-key storage.
+This keeps access scoped while enabling local persistence, microphone input, remote output server, API-key storage, and direct-distribution update/cloud flows where permitted.
 
 ## Design constraints and tradeoffs
 
@@ -205,3 +223,6 @@ This keeps access scoped while enabling local persistence, microphone input, rem
 - [`../FocusCue/DraftFileStore.swift`](../FocusCue/DraftFileStore.swift)
 - [`../FocusCue/NotchSettings.swift`](../FocusCue/NotchSettings.swift)
 - [`../FocusCue/PermissionCenter.swift`](../FocusCue/PermissionCenter.swift)
+- [`../FocusCue/DistributionFeatures.swift`](../FocusCue/DistributionFeatures.swift)
+- [`../FocusCue/FocusCue.entitlements`](../FocusCue/FocusCue.entitlements)
+- [`../FocusCue/FocusCueAppStore.entitlements`](../FocusCue/FocusCueAppStore.entitlements)

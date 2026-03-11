@@ -4,6 +4,13 @@
 
 This document covers operational integrations that sit at the boundary of FocusCue and external systems: speech backends, AI services, platform permissions, update checks, and import/export pipelines.
 
+## Distribution profiles
+
+| Profile | Scheme/configuration | Deepgram/OpenAI/updater availability |
+| --- | --- | --- |
+| App Store | `FocusCue` with `Debug` / `Release` | Hidden and runtime-disabled |
+| Direct | `FocusCue Direct Debug` / `FocusCue Direct Release` | Available |
+
 ## Speech backends (Apple vs Deepgram)
 
 | Aspect | Apple backend | Deepgram backend |
@@ -21,6 +28,7 @@ This document covers operational integrations that sit at the boundary of FocusC
 - Missing Deepgram key blocks start with actionable error.
 - Mic switching uses selected UID where available.
 - `isSpeaking` is derived from recent audio-level average and drives voice-activated progression.
+- App Store builds force Apple speech only through `DistributionFeatures` and settings normalization.
 
 ## Smart Resync and script refinement
 
@@ -28,6 +36,8 @@ FocusCue includes two OpenAI-backed paths:
 
 1. Smart Resync (`LLMResyncService`) during playback.
 2. Draft refinement (`ScriptDraftService.refine`) after free-run capture.
+
+These paths are available only in direct-distribution builds.
 
 ## Smart Resync flow
 
@@ -88,15 +98,19 @@ Key entitlements include:
 - app sandbox
 - audio input
 - user-selected file read/write
-- network client/server
+- network server in App Store builds
+- network client/server in direct-distribution builds
 - keychain access group
 
 Source:
 - [`../FocusCue/FocusCue.entitlements`](../FocusCue/FocusCue.entitlements)
+- [`../FocusCue/FocusCueAppStore.entitlements`](../FocusCue/FocusCueAppStore.entitlements)
 
 ## Update checker behavior
 
 ## Trigger points
+
+Direct-distribution builds only:
 
 1. Silent check on app launch.
 2. Manual check from app command menu.
@@ -156,6 +170,8 @@ Operational details:
 | External display | Target display unavailable | No external panel visible | Refresh display list and reselect target screen. |
 | `.pptx` import | Unsupported/empty notes payload | Import error alert | Re-export deck with presenter notes and retry. |
 | Update check | API/network failure | Update check failed alert | Retry later; verify network access. |
+
+App Store builds do not expose the updater, Deepgram, Smart Resync, or draft refinement surfaces.
 
 ## Operations checklist
 

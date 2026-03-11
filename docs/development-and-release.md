@@ -6,10 +6,21 @@ This document covers local development builds, CI validation, release automation
 
 ## Local build flows
 
+## Distribution matrix
+
+| Scheme | Configuration(s) | Distribution profile | Notes |
+| --- | --- | --- | --- |
+| `FocusCue` | `Debug`, `Release` | App Store | Uses `APP_STORE_BUILD`, `FocusCueAppStore.entitlements`, and hides Deepgram/OpenAI/updater. |
+| `FocusCue Direct Debug` | `DirectDebug` | Direct | Local non-App-Store development surface. |
+| `FocusCue Direct Release` | `DirectRelease` | Direct | Direct-download release/profile/archive surface. |
+
 ## Xcode build (recommended day-to-day)
 
 1. Open `FocusCue.xcodeproj`.
-2. Select scheme `FocusCue`.
+2. Select a scheme based on the target surface:
+   - `FocusCue` for App Store validation.
+   - `FocusCue Direct Debug` for direct-distribution development.
+   - `FocusCue Direct Release` for direct-distribution release verification.
 3. Build/run with a macOS destination.
 
 ## Local StoreKit testing
@@ -19,7 +30,7 @@ FocusCue includes a committed local StoreKit configuration at `FocusCue/StoreKit
 ### Setup
 
 1. Open `FocusCue.xcodeproj` in Xcode.
-2. Select scheme `FocusCue`.
+2. Select either `FocusCue` or `FocusCue Direct Debug`, depending on which distribution surface you want to test.
 3. Open `Product > Scheme > Edit Scheme...`.
 4. Confirm the `Run` action uses `FocusCue.storekit`.
 5. If you add tests later, confirm the `Test` action also uses `FocusCue.storekit`.
@@ -78,13 +89,24 @@ Local `.storekit` testing simulates StoreKit only. It does not validate App Stor
 - Refund or revocation downgrades the app.
 - Trial still works when no local transaction exists.
 
-## CLI debug build
+## CLI App Store debug build
 
 ```bash
 xcodebuild build \
   -project /Users/saransh1337/Developer/Projects/FocusCue/FocusCue.xcodeproj \
   -scheme FocusCue \
   -configuration Debug \
+  -destination "platform=macOS" \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+## CLI direct debug build
+
+```bash
+xcodebuild build \
+  -project /Users/saransh1337/Developer/Projects/FocusCue/FocusCue.xcodeproj \
+  -scheme "FocusCue Direct Debug" \
+  -configuration DirectDebug \
   -destination "platform=macOS" \
   CODE_SIGNING_ALLOWED=NO
 ```
@@ -101,6 +123,8 @@ bash /Users/saransh1337/Developer/Projects/FocusCue/build.sh
 3. `lipo` merge into universal app
 4. DMG staging and packaging
 
+It now uses `FocusCue Direct Release` with `DirectRelease`, so local DMGs preserve the non-App-Store updater and cloud-integration surface.
+
 Artifacts are written under:
 - `/Users/saransh1337/Developer/Projects/FocusCue/build/release/`
 
@@ -110,7 +134,9 @@ Artifacts are written under:
 | --- | --- |
 | [`../build.sh`](../build.sh) | Local universal archive + DMG flow |
 | [`../FocusCue.xcodeproj/project.pbxproj`](../FocusCue.xcodeproj/project.pbxproj) | Build settings, entitlements, bundle ID, target config |
-| [`../FocusCue.xcodeproj/xcshareddata/xcschemes/FocusCue.xcscheme`](../FocusCue.xcodeproj/xcshareddata/xcschemes/FocusCue.xcscheme) | Shared scheme configuration |
+| [`../FocusCue.xcodeproj/xcshareddata/xcschemes/FocusCue.xcscheme`](../FocusCue.xcodeproj/xcshareddata/xcschemes/FocusCue.xcscheme) | Shared App Store scheme configuration |
+| [`../FocusCue.xcodeproj/xcshareddata/xcschemes/FocusCue Direct Debug.xcscheme`](../FocusCue.xcodeproj/xcshareddata/xcschemes/FocusCue%20Direct%20Debug.xcscheme) | Shared direct-distribution debug scheme |
+| [`../FocusCue.xcodeproj/xcshareddata/xcschemes/FocusCue Direct Release.xcscheme`](../FocusCue.xcodeproj/xcshareddata/xcschemes/FocusCue%20Direct%20Release.xcscheme) | Shared direct-distribution release scheme |
 
 ## CI workflow behavior
 
@@ -125,7 +151,7 @@ Workflow file: [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 
 - Runner: `macos-15`
 - Action: checkout repository
-- Build: debug `xcodebuild` with `CODE_SIGNING_ALLOWED=NO`
+- Build: App Store `Debug` and direct `DirectDebug` with `CODE_SIGNING_ALLOWED=NO`
 - Concurrency: per-workflow/ref grouping with cancel-in-progress enabled
 
 ## Release workflow behavior
@@ -140,7 +166,7 @@ Workflow file: [`../.github/workflows/release.yml`](../.github/workflows/release
 
 1. Checkout source.
 2. Import signing certificate into temporary keychain.
-3. Build release app.
+3. Build direct-release app with `FocusCue Direct Release` / `DirectRelease`.
 4. Code sign app with Developer ID identity.
 5. Notarize zipped app and staple ticket.
 6. Create DMG artifact.
@@ -149,7 +175,7 @@ Workflow file: [`../.github/workflows/release.yml`](../.github/workflows/release
 ```mermaid
 graph TD
     A["Tag push v*"] --> B["Import cert/keychain"]
-    B --> C["xcodebuild Release"]
+    B --> C["xcodebuild DirectRelease"]
     C --> D["codesign FocusCue.app"]
     D --> E["notarytool submit + wait"]
     E --> F["stapler staple"]
@@ -171,12 +197,13 @@ graph TD
 ## Validation checklist (pre-release)
 
 1. CI debug build passes on latest `main`.
-2. Local debug build and local release build both succeed.
+2. Local App Store debug build, local direct debug build, and local direct release build all succeed.
 3. App launches and core smoke paths pass:
    - script edit/save/open
    - playback across selected modes
    - `.pptx` import
    - remote/external output check
+   - updater/cloud integrations on direct schemes
 4. Signing identity is detected in release runner output.
 5. Notarization returns valid status and stapling completes.
 6. DMG contains expected app bundle and installs cleanly.
@@ -193,7 +220,7 @@ graph TD
 
 ## Contributor workflow recommendation
 
-1. Build locally in Debug before committing.
+1. Build both `FocusCue` and `FocusCue Direct Debug` locally before committing when touching distribution-sensitive code.
 2. Keep documentation aligned with behavioral changes in source.
 3. Avoid release-tag pushes until smoke checklist is complete.
 4. For release changes, validate both workflow files and `build.sh` consistency.
@@ -205,3 +232,4 @@ graph TD
 - [`../.github/workflows/release.yml`](../.github/workflows/release.yml)
 - [`../FocusCue.xcodeproj/project.pbxproj`](../FocusCue.xcodeproj/project.pbxproj)
 - [`../FocusCue/FocusCue.entitlements`](../FocusCue/FocusCue.entitlements)
+- [`../FocusCue/FocusCueAppStore.entitlements`](../FocusCue/FocusCueAppStore.entitlements)

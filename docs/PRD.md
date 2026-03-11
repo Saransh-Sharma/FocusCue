@@ -17,6 +17,15 @@ FocusCue enables presenters to:
 - Run teleprompter output on primary overlay, external displays, and browser-based remote surfaces.
 - Preserve work through autosave, page-level draft persistence, and native `.focuscue` files.
 
+## Distribution profiles
+
+FocusCue currently ships in two distribution families:
+
+- App Store: `FocusCue` scheme with `Debug` / `Release`
+- Direct distribution: `FocusCue Direct Debug` / `FocusCue Direct Release`
+
+The App Store surface is intentionally reduced to Apple on-device speech, browser remote, and Mac App Store updates. Direct-distribution builds additionally expose GitHub-based update checks plus the Deepgram/OpenAI integrations.
+
 ## Goals
 
 1. Reduce presenter cognitive load during live delivery.
@@ -78,8 +87,8 @@ FocusCue enables presenters to:
 | Voice-Activated mode (speak-to-scroll) | Shipped |
 | Classic mode (timer-based scroll) | Shipped |
 | Apple on-device backend support | Shipped |
-| Deepgram cloud backend support | Shipped |
-| Smart Resync using OpenAI API key | Shipped |
+| Deepgram cloud backend support | Shipped in direct-distribution builds |
+| Smart Resync using OpenAI API key | Shipped in direct-distribution builds |
 
 ### FR-4 Output surfaces
 
@@ -106,7 +115,7 @@ FocusCue enables presenters to:
 | --- | --- |
 | First-run onboarding with permissions flow | Shipped |
 | Settings for appearance, guidance, surfaces, remote | Shipped |
-| Update checks against GitHub releases | Shipped |
+| Update checks against GitHub releases | Shipped in direct-distribution builds |
 | Signed/notarized release workflow support | Shipped |
 
 ## Non-functional requirements
@@ -136,9 +145,9 @@ FocusCue enables presenters to:
 
 ### Speech and AI
 
-- Apple Speech + Deepgram backend support with selected microphone routing.
+- Apple Speech support in all distributions; Deepgram backend in direct-distribution builds.
 - Fuzzy spoken-word matching and annotation-aware progression logic.
-- Optional Smart Resync and draft refinement via OpenAI API key.
+- Optional Smart Resync and draft refinement via OpenAI API key in direct-distribution builds.
 
 ### Persistence and operations
 
@@ -193,14 +202,14 @@ The following roadmap items are intended for near-term releases and are not yet 
 
 ## Release-readiness checklist
 
-1. Build validation passes for Debug and Release configurations.
+1. Build validation passes for `FocusCue` (`Debug`, `Release`) and direct-distribution (`DirectDebug`, `DirectRelease`) configurations.
 2. Manual smoke test for each overlay mode (pinned, floating, follow-cursor, fullscreen).
 3. Manual smoke test for listening modes (Classic, Voice-Activated, Word Tracking).
 4. Confirm external display and browser remote output behavior.
 5. Confirm `.focuscue` save/open, `.pptx` import, and unsaved-change prompts.
 6. Validate onboarding permission flows on a clean profile.
-7. Validate update check path and release metadata integrity.
-8. For tagged releases: code signing, notarization, DMG generation, and GitHub release upload complete.
+7. Validate App Store update-only behavior in `FocusCue` and GitHub updater behavior in direct-distribution builds.
+8. For tagged direct releases: code signing, notarization, DMG generation, and GitHub release upload complete.
 
 ## Primary implementation references
 
@@ -214,6 +223,7 @@ The following roadmap items are intended for near-term releases and are not yet 
 - [`../FocusCue/DraftFileStore.swift`](../FocusCue/DraftFileStore.swift)
 - [`../FocusCue/SettingsView.swift`](../FocusCue/SettingsView.swift)
 - [`../FocusCue/OnboardingWizardView.swift`](../FocusCue/OnboardingWizardView.swift)
+- [`../FocusCue/DistributionFeatures.swift`](../FocusCue/DistributionFeatures.swift)
 - [`../build.sh`](../build.sh)
 - [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 - [`../.github/workflows/release.yml`](../.github/workflows/release.yml)

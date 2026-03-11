@@ -29,10 +29,10 @@ Primary use cases:
   - Voice-Activated
   - Classic
 - Speech backends:
-  - Apple on-device recognition
-  - Deepgram cloud recognition
-- Optional Smart Resync with OpenAI key.
-- Optional draft refinement for free-run transcript cleanup.
+  - Apple on-device recognition in all builds
+  - Deepgram cloud recognition in direct-distribution builds
+- Optional Smart Resync with OpenAI key in direct-distribution builds.
+- Optional draft refinement for free-run transcript cleanup in direct-distribution builds.
 
 ### Run output where you need it
 
@@ -51,7 +51,17 @@ Primary use cases:
 - UserDefaults autosave plus file-backed draft persistence.
 - Schema-versioned document wrapper for `.focuscue` files.
 - Keychain storage for API keys.
-- Update checks against GitHub releases.
+- Update checks against GitHub releases in direct-distribution builds.
+
+## Distribution profiles
+
+FocusCue now ships with separate App Store and direct-distribution build profiles.
+
+| Scheme | Build configurations | Intended use |
+| --- | --- | --- |
+| `FocusCue` | `Debug`, `Release` | App Store surface. Uses `APP_STORE_BUILD`, App Store entitlements, browser remote, Apple on-device speech, and no external updater/Deepgram/OpenAI UI. |
+| `FocusCue Direct Debug` | `DirectDebug` | Local non-App-Store development with Deepgram/OpenAI/updater available. |
+| `FocusCue Direct Release` | `DirectRelease` | Direct-download release builds, DMGs, and GitHub release artifacts. |
 
 ## Quick start
 
@@ -59,23 +69,37 @@ Primary use cases:
 
 - macOS with Xcode support for the project deployment target.
 - Xcode with command-line tools installed.
-- Optional API keys:
+- Optional API keys for direct-distribution schemes:
   - Deepgram (cloud speech backend)
   - OpenAI (Smart Resync and draft refinement)
 
 ## Build and run with Xcode
 
 1. Open `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue.xcodeproj`.
-2. Select the `FocusCue` scheme.
+2. Select one of:
+   - `FocusCue` for the App Store surface.
+   - `FocusCue Direct Debug` for local non-App-Store development.
+   - `FocusCue Direct Release` for direct-download release verification.
 3. Build and run on a macOS destination.
 
-## Build via command line (Debug)
+## Build via command line (App Store Debug)
 
 ```bash
 xcodebuild build \
   -project /Users/saransh1337/Developer/Projects/FocusCue/FocusCue.xcodeproj \
   -scheme FocusCue \
   -configuration Debug \
+  -destination "platform=macOS" \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+## Build via command line (Direct Debug)
+
+```bash
+xcodebuild build \
+  -project /Users/saransh1337/Developer/Projects/FocusCue/FocusCue.xcodeproj \
+  -scheme "FocusCue Direct Debug" \
+  -configuration DirectDebug \
   -destination "platform=macOS" \
   CODE_SIGNING_ALLOWED=NO
 ```
@@ -88,6 +112,8 @@ bash /Users/saransh1337/Developer/Projects/FocusCue/build.sh
 
 Artifacts are produced under:
 - `/Users/saransh1337/Developer/Projects/FocusCue/build/release/`
+
+`build.sh` now uses the `FocusCue Direct Release` scheme and `DirectRelease` configuration so the DMG matches the direct-download feature set.
 
 ## First-run guidance (onboarding and permissions)
 
@@ -127,7 +153,7 @@ graph TD
 | Path | Description |
 | --- | --- |
 | `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/` | macOS app source (UI, service layer, speech, overlays, persistence, integrations) |
-| `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue.xcodeproj/` | Xcode project and shared scheme |
+| `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue.xcodeproj/` | Xcode project, shared App Store scheme, and shared direct-distribution schemes |
 | `/Users/saransh1337/Developer/Projects/FocusCue/docs/` | Canonical technical docs and PRD |
 | `/Users/saransh1337/Developer/Projects/FocusCue/.github/workflows/` | CI and release automation workflows |
 | `/Users/saransh1337/Developer/Projects/FocusCue/build.sh` | Local universal build + DMG script |

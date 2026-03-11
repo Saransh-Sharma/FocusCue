@@ -139,6 +139,18 @@ On workspace mutation, `FocusCueService` performs:
 
 This keeps service keys outside markdown/config/userdefaults payloads.
 
+App Store builds intentionally retain any previously saved keys but do not expose their settings UI and do not consume them at runtime. Direct-distribution builds (`FocusCue Direct Debug` / `FocusCue Direct Release`) continue to use the same stored secrets.
+
+## Distribution-aware settings normalization
+
+FocusCue preserves user settings across distribution profiles, but the App Store surface normalizes cloud-dependent state on launch:
+
+- `speechBackend` is forced back to Apple on-device speech
+- `llmResyncEnabled` is forced to `false`
+- stored Deepgram/OpenAI keys remain in Keychain for future direct-distribution runs
+
+This allows a single local data footprint while keeping the App Store build aligned with its reduced feature surface.
+
 ## Data lifecycle sequence
 
 ```mermaid
@@ -171,3 +183,6 @@ sequenceDiagram
 - [`../FocusCue/WorkspacePersistence.swift`](../FocusCue/WorkspacePersistence.swift)
 - [`../FocusCue/DraftFileStore.swift`](../FocusCue/DraftFileStore.swift)
 - [`../FocusCue/KeychainStore.swift`](../FocusCue/KeychainStore.swift)
+- [`../FocusCue/DistributionFeatures.swift`](../FocusCue/DistributionFeatures.swift)
+- [`../FocusCue/EntitlementService.swift`](../FocusCue/EntitlementService.swift)
+- [`../FocusCue/NotchSettings.swift`](../FocusCue/NotchSettings.swift)

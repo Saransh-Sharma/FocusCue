@@ -6,6 +6,7 @@ This reference documents core runtime modules, interfaces, contracts, and operat
 
 | Module/File | Primary responsibility | Key types |
 | --- | --- | --- |
+| [`../FocusCue/DistributionFeatures.swift`](../FocusCue/DistributionFeatures.swift) | Build-surface gating for App Store vs direct-distribution behavior | `DistributionFeatures` |
 | [`../FocusCue/FocusCueService.swift`](../FocusCue/FocusCueService.swift) | Central orchestration for workspace, playback, file IO, persistence coordination, output synchronization | `FocusCueService`, `StartAvailabilityReason` |
 | [`../FocusCue/NotchOverlayController.swift`](../FocusCue/NotchOverlayController.swift) | Overlay window lifecycle, mode-specific panel behavior, page picker and countdown interactions | `NotchOverlayController`, `OverlayContent`, `NotchFrameTracker` |
 | [`../FocusCue/SpeechRecognizer.swift`](../FocusCue/SpeechRecognizer.swift) | Speech capture, backend integration, fuzzy matching, progression updates, resync triggers | `SpeechRecognizer`, `AudioInputDevice` |
@@ -18,10 +19,24 @@ This reference documents core runtime modules, interfaces, contracts, and operat
 | [`../FocusCue/SettingsView.swift`](../FocusCue/SettingsView.swift) | Settings UI, previews, advanced remote controls | `SettingsView`, `NotchPreviewController` |
 | [`../FocusCue/MainWindowComponents.swift`](../FocusCue/MainWindowComponents.swift) | Reusable main-window component library and interaction widgets | `FCWindowHeader`, `FCPageRail`, `FCPlaybackHeroPanel`, `FCCommandCenter` |
 | [`../FocusCue/MainWindowTheme.swift`](../FocusCue/MainWindowTheme.swift) | Tokenized design system for color, typography, spacing, motion, effects | `FCTheme`, token enums |
-| [`../FocusCue/ScriptDraftService.swift`](../FocusCue/ScriptDraftService.swift) | Free-run recording and AI script refinement workflow | `ScriptDraftService` |
-| [`../FocusCue/LLMResyncService.swift`](../FocusCue/LLMResyncService.swift) | Pause-triggered AI sync offset reconciliation | `LLMResyncService`, `ResyncResult` |
+| [`../FocusCue/ScriptDraftService.swift`](../FocusCue/ScriptDraftService.swift) | Free-run recording and optional direct-distribution script refinement workflow | `ScriptDraftService` |
+| [`../FocusCue/LLMResyncService.swift`](../FocusCue/LLMResyncService.swift) | Pause-triggered direct-distribution sync offset reconciliation | `LLMResyncService`, `ResyncResult` |
 
 ## Core contracts and behaviors
+
+## Distribution profiles
+
+FocusCue now ships with two distribution families:
+
+- App Store builds: `FocusCue` scheme with `Debug` / `Release`
+- Direct-distribution builds: `FocusCue Direct Debug` / `FocusCue Direct Release`
+
+`DistributionFeatures` is the build-surface switchboard for:
+
+- external updater visibility
+- Deepgram/OpenAI settings and runtime availability
+- persisted-state normalization for App Store-safe behavior
+- browser remote availability
 
 ## `FocusCueService`
 
@@ -58,8 +73,8 @@ This reference documents core runtime modules, interfaces, contracts, and operat
 ### Behavior modes
 
 - Apple backend: on-device speech with authorization checks and retry/restart behavior.
-- Deepgram backend: WebSocket streaming audio and transcript updates.
-- Optional Smart Resync: OpenAI-assisted forward-only offset correction at speaking pauses.
+- Deepgram backend: WebSocket streaming audio and transcript updates in direct-distribution builds.
+- Optional Smart Resync: direct-distribution-only forward-only offset correction at speaking pauses.
 
 ### Matching model
 
@@ -102,11 +117,11 @@ The settings surface is defined by `NotchSettings` and operated by `SettingsView
 
 | Setting | Persisted key | Runtime effect |
 | --- | --- | --- |
-| `speechBackend` | `speechBackend` | Switches speech recognition backend (Apple/Deepgram). |
-| `deepgramAPIKey` | Keychain | Enables Deepgram streaming when backend is cloud mode. |
-| `openaiAPIKey` | Keychain | Enables Smart Resync and draft refinement API calls. |
-| `llmResyncEnabled` | `llmResyncEnabled` | Enables pause-triggered AI offset correction in recognition flow. |
-| `refinementModel` | `refinementModel` | Selects OpenAI model for draft refinement requests. |
+| `speechBackend` | `speechBackend` | Switches speech recognition backend in direct-distribution builds; App Store builds normalize this to Apple. |
+| `deepgramAPIKey` | Keychain | Enables Deepgram streaming in direct-distribution builds; ignored by App Store builds. |
+| `openaiAPIKey` | Keychain | Enables Smart Resync and draft refinement in direct-distribution builds; ignored by App Store builds. |
+| `llmResyncEnabled` | `llmResyncEnabled` | Enables pause-triggered offset correction in direct-distribution builds; forced off in App Store builds. |
+| `refinementModel` | `refinementModel` | Selects refinement model for direct-distribution draft cleanup requests. |
 | `speechLocale` | `speechLocale` | Sets locale for Apple speech recognizer initialization. |
 | `listeningMode` | `listeningMode` | Chooses progression model (word tracking, voice-activated, classic). |
 | `selectedMicUID` | `selectedMicUID` | Routes capture to selected input device when supported. |
@@ -173,7 +188,7 @@ Related files:
 ## Extension points
 
 1. Add new listening modes by extending `ListeningMode`, progression logic in overlay/speech flows, and settings UI.
-2. Add alternate speech providers behind `SpeechRecognizer` backend routing.
+2. Add alternate speech providers behind `SpeechRecognizer` backend routing and `DistributionFeatures`.
 3. Add new output surfaces by following controller pattern used by browser/external output.
 4. Extend document schema via new versioned wrappers with explicit compatibility handling.
 
@@ -181,6 +196,6 @@ Related files:
 
 1. Browser server is local-network oriented and does not implement authenticated internet exposure.
 2. Legacy array-only `.focuscue` format is rejected (no in-app migration path).
-3. Deepgram and OpenAI features require valid user-provided API keys.
+3. Deepgram and OpenAI features require direct-distribution builds plus valid user-provided API keys.
 4. Some speech operations depend on runtime permission grants and hardware mic availability.
 5. Overlay interaction model varies by mode (e.g., follow-cursor click-through behavior).
