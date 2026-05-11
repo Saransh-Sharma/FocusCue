@@ -222,7 +222,7 @@ struct DraftSessionView: View {
                     .buttonStyle(.bordered)
                     .controlSize(.regular)
 
-Button {
+                    Button {
                         draftService.rawTranscript = editableTranscript
                         withAnimation(theme.animation(.base)) {
                             phase = .refined
@@ -239,7 +239,6 @@ Button {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.regular)
                     .disabled(editableTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
                 }
 
             case .refined:
