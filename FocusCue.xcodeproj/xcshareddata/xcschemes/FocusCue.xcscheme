@@ -29,9 +29,6 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
-      <StoreKitConfigurationFileReference
-         identifier = "../../FocusCue/StoreKit/FocusCue.storekit">
-      </StoreKitConfigurationFileReference>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
@@ -53,9 +50,6 @@
             ReferencedContainer = "container:FocusCue.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
-      <StoreKitConfigurationFileReference
-         identifier = "../../FocusCue/StoreKit/FocusCue.storekit">
-      </StoreKitConfigurationFileReference>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"

@@ -23,71 +23,16 @@ This document covers local development builds, CI validation, release automation
    - `FocusCue Direct Release` for direct-distribution release verification.
 3. Build/run with a macOS destination.
 
-## Local StoreKit testing
+## Free full-access behavior
 
-FocusCue includes a committed local StoreKit configuration at `FocusCue/StoreKit/FocusCue.storekit`.
-
-### Setup
-
-1. Open `FocusCue.xcodeproj` in Xcode.
-2. Select either `FocusCue` or `FocusCue Direct Debug`, depending on which distribution surface you want to test.
-3. Open `Product > Scheme > Edit Scheme...`.
-4. Confirm the `Run` action uses `FocusCue.storekit`.
-5. If you add tests later, confirm the `Test` action also uses `FocusCue.storekit`.
-
-### Local purchase test
-
-1. Run the app from Xcode.
-2. Open any Pro paywall surface.
-3. Confirm the paywall shows a simulated price for the lifetime unlock.
-4. Click `Unlock Pro`.
-5. Approve the simulated StoreKit purchase dialog.
-6. Confirm the app immediately switches to Pro branding and state.
-
-### Local restore test
-
-1. With the app running from Xcode, trigger `Restore Purchases`.
-2. Confirm the app remains or returns to Pro if the simulated entitlement exists.
-
-### Local refund / revoke test
-
-1. In Xcode, open `Debug > StoreKit > Manage Transactions`.
-2. Find the lifetime purchase transaction for `com.saransh1337.focuscue.pro.lifetime.teleprompter`.
-3. Use the StoreKit testing UI to refund, revoke, or delete the transaction. The exact label can vary by Xcode version.
-4. Return to the app and trigger an entitlement refresh path by relaunching the app or using `Restore Purchases`.
-5. Confirm the app downgrades appropriately.
-
-### Local reset state
-
-1. In Xcode, open `Debug > StoreKit > Clear Transactions`, or use the equivalent action in the StoreKit transaction manager.
-2. Relaunch the app.
-3. Confirm the app behaves like a never-purchased user again.
-
-### Caveat
-
-Local `.storekit` testing simulates StoreKit only. It does not validate App Store Connect review status, metadata propagation, banking, tax, or TestFlight production wiring.
-
-### Troubleshooting
-
-- If the paywall shows no price locally:
-  - Confirm the scheme is using `FocusCue.storekit`.
-  - Confirm the product ID in `FocusCue.storekit` matches `StoreProductIDs.lifetimeProUnlock`.
-  - Clean the build folder and relaunch.
-- If purchase appears to do nothing:
-  - Confirm the app was launched from Xcode with the shared scheme.
-  - Confirm a simulated transaction was created in Xcode's StoreKit transaction manager.
-- If restore fails locally:
-  - Confirm the local transaction still exists.
-  - Re-purchase once, then test restore again.
+FocusCue is distributed as a free app with all Pro workflows enabled by default. The app does not include in-app purchase products, purchase restoration, trials, paid access prompts, or local purchase testing configuration.
 
 ### Local QA checklist
 
-- Product fetch shows a simulated price.
-- Purchase flips the app to Pro.
-- Relaunch preserves Pro.
-- Restore works.
-- Refund or revocation downgrades the app.
-- Trial still works when no local transaction exists.
+- Header and settings show full access without purchase actions.
+- Multi-page editing, playback, saving, reordering, archiving, and deletion are available immediately.
+- Word Tracking, Deepgram, Smart Resync, fullscreen, external display, browser remote, auto-next-page, PPTX import, and AI refinement are available without entitlement prompts.
+- Existing purchase or trial values in `UserDefaults` do not affect access.
 
 ## CLI App Store debug build
 

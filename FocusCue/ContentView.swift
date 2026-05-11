@@ -22,7 +22,6 @@ struct ContentView: View {
     @State private var revealMainWindow = false
     @State private var showDeletePageConfirmation = false
     @State private var pendingDeletePageID: UUID?
-    @State private var pendingTrialAction: TrialEntryAction?
     @State private var modalCoordinator = AppModalCoordinator()
     @State private var commandCoordinator = AppCommandCoordinator.shared
 
@@ -107,9 +106,7 @@ Happy presenting! [wave]
                 FCWindowHeader(
                     subtitle: "Stay on script. Stay on camera. Stay natural.",
                     entitlements: entitlements,
-                    compact: isCompactLayout,
-                    onUpgrade: { presentPaywall(.generalAccess) },
-                    onRestore: { restorePurchases() }
+                    compact: isCompactLayout
                 )
 
                 if isCompactLayout {
@@ -195,7 +192,6 @@ Happy presenting! [wave]
                     guard let pageID = pendingDeletePageID else { return }
                     guard entitlements.canPerform(.delete, on: pageID, in: service.workspace) else {
                         pendingDeletePageID = nil
-                        presentPaywall(.multiPageEditing)
                         return
                     }
                     withAnimation(theme.spring(.snappy)) {
@@ -250,28 +246,14 @@ Happy presenting! [wave]
                 onboardingEntryContext = .manual
                 showOnboarding = true
             }
-            .onReceive(NotificationCenter.default.publisher(for: .presentPaywall)) { notification in
-                let rawValue = notification.object as? String
-                presentPaywall(rawValue.flatMap(FeatureGate.init(rawValue:)) ?? .generalAccess)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .dismissPaywall)) { _ in
-                dismissTopPaywallIfNeeded()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .restorePurchases)) { _ in
-                restorePurchases()
-            }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                 isRunning = service.overlayController.isShowing
                 entitlements.refreshPresentationState()
                 entitlements.enforceAllowedSettings()
-                syncLiteSelection()
-                syncDowngradeRouteIfNeeded()
             }
             .onAppear {
                 entitlements.handleAppLaunch()
                 processPendingCommands()
-                syncLiteSelection()
-                syncDowngradeRouteIfNeeded()
                 if !service.restoredWorkspaceFromAutosave && service.totalPageCount == 1 && service.currentPageText.isEmpty {
                     service.setTextForSelectedPage(defaultText)
                 }
@@ -300,7 +282,7 @@ Happy presenting! [wave]
                 revealMainWindow = true
             }
             .onChange(of: service.selectedPageID) { _, _ in
-                syncLiteSelection()
+                entitlements.syncLiteUnlockedPage(with: service.workspace)
             }
             .onChange(of: commandCoordinator.enqueueCount) { _, _ in
                 processPendingCommands()
@@ -323,7 +305,7 @@ Happy presenting! [wave]
                 }
             },
             onSelectLockedPage: { pageID in
-                presentLitePageOptions(for: pageID)
+                service.selectPage(pageID)
             },
             onRenamePage: { pageID, title in
                 service.renamePage(pageID, to: title)
@@ -333,7 +315,6 @@ Happy presenting! [wave]
             },
             onDeletePage: { pageID in
                 guard entitlements.canPerform(.delete, on: pageID, in: service.workspace) else {
-                    presentPaywall(.multiPageEditing)
                     return
                 }
                 pendingDeletePageID = pageID
@@ -341,7 +322,7 @@ Happy presenting! [wave]
             },
             onAddLivePage: { addPage() },
             onAddLocked: {
-                presentPaywall(.multiPageEditing)
+                addPage()
             },
             onMovePageUp: { pageID, module in
                 movePageUp(pageID, module: module, theme: theme)
@@ -447,7 +428,6 @@ Happy presenting! [wave]
             if selectedModule == .liveTranscripts {
                 Button {
                     guard canMoveSelectedPage else {
-                        presentPaywall(.multiPageEditing)
                         return
                     }
                     withAnimation(theme.spring(.snappy)) {
@@ -463,7 +443,6 @@ Happy presenting! [wave]
             } else {
                 Button {
                     guard canMoveSelectedPage else {
-                        presentPaywall(.multiPageEditing)
                         return
                     }
                     withAnimation(theme.spring(.snappy)) {
@@ -486,7 +465,6 @@ Happy presenting! [wave]
             let canDeleteSelectedPage = entitlements.canPerform(.delete, on: selectedPageID, in: service.workspace)
             Button {
                 guard canDeleteSelectedPage else {
-                    presentPaywall(.multiPageEditing)
                     return
                 }
                 pendingDeletePageID = selectedPageID
@@ -554,7 +532,6 @@ Happy presenting! [wave]
 
                 Button(role: .destructive) {
                     guard entitlements.canPerform(.delete, on: selectedPageID, in: service.workspace) else {
-                        presentPaywall(.multiPageEditing)
                         return
                     }
                     pendingDeletePageID = selectedPageID
@@ -595,7 +572,7 @@ Happy presenting! [wave]
                 showOnboarding = true
             },
             onBlockedFeature: { feature in
-                presentPaywall(feature)
+                let _ = feature
             }
         )
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -635,7 +612,7 @@ Happy presenting! [wave]
                     modalCoordinator.pop()
                 },
                 onBlockedFeature: { feature in
-                    presentPaywall(feature)
+                    let _ = feature
                 }
             )
         case .settings(let initialTab, let launchedFromOnboarding):
@@ -646,125 +623,23 @@ Happy presenting! [wave]
                 onReturnToGuidedTemplate: settingsGuidedTemplateDraft != nil ? {
                     returnToGuidedTemplateFromSettings()
                 } : nil,
-                onUpgrade: {
-                    presentPaywall(.generalAccess)
-                },
-                onRestorePurchases: {
-                    restorePurchases()
-                },
                 onBlockedFeature: { feature in
-                    presentPaywall(feature)
+                    let _ = feature
                 }
             )
         case .about:
             AboutView()
-        case .paywall(let feature):
-            paywallContent(for: feature)
-        case .trialOffer(_):
-            trialOfferContent
-        case .proUnlocked(let source):
-            proUnlockedContent(for: source)
-        case .litePageAccess(let pageID):
-            litePageAccessContent(for: pageID)
-        case .downgrade:
-            downgradeContent
         }
     }
 
     @ViewBuilder
     private func modalOverlayContent(for route: AppModalCoordinator.Route) -> some View {
-        switch route {
-        case .paywall(let feature):
-            paywallContent(for: feature)
-        default:
-            modalBaseContent(for: route)
-        }
-    }
-
-    private func paywallContent(for feature: FeatureGate) -> some View {
-        FCPaywallSheet(
-            feature: feature,
-            entitlements: entitlements,
-            onPurchase: {
-                purchasePro()
-            },
-            onRestore: {
-                restorePurchases()
-            },
-            onDismiss: {
-                modalCoordinator.pop()
-            }
-        )
-    }
-
-    private var trialOfferContent: some View {
-        FCTrialOfferSheet(
-            entitlements: entitlements,
-            onStartTrial: {
-                modalCoordinator.pop()
-                _ = entitlements.startTrialIfNeeded()
-                entitlements.enforceAllowedSettings()
-                DispatchQueue.main.async {
-                    executePendingTrialAction(skipTrialOffer: true)
-                }
-            },
-            onPurchase: {
-                presentPaywall(.generalAccess)
-            },
-            onSkip: {
-                modalCoordinator.pop()
-                DispatchQueue.main.async {
-                    executePendingTrialAction(skipTrialOffer: true)
-                }
-            }
-        )
-    }
-
-    private func proUnlockedContent(for source: ProUnlockSource) -> some View {
-        FCProUnlockedSheet(
-            source: source,
-            onContinue: {
-                modalCoordinator.clear()
-                DispatchQueue.main.async {
-                    executePendingTrialAction(skipTrialOffer: true)
-                }
-            }
-        )
-    }
-
-    private func litePageAccessContent(for pageID: UUID) -> some View {
-        FCLitePageAccessSheet(
-            onUseThisPage: {
-                activateLitePage(pageID)
-                modalCoordinator.pop()
-            },
-            onUpgrade: {
-                modalCoordinator.replaceTop(with: .paywall(feature: .multiPageEditing))
-            }
-        )
-    }
-
-    private var downgradeContent: some View {
-        FCDowngradeSheet(
-            entitlements: entitlements,
-            onContinue: {
-                entitlements.dismissDowngradeNotice()
-                syncLiteSelection()
-                modalCoordinator.pop()
-            },
-            onPurchase: {
-                presentPaywall(.generalAccess)
-            }
-        )
+        modalBaseContent(for: route)
     }
 
     // MARK: - Actions
 
     private func addPage() {
-        guard entitlements.has(.multiPageEditing) else {
-            presentPaywall(.multiPageEditing)
-            return
-        }
         withAnimation(currentTheme.spring(.snappy)) {
             _ = service.createPageInSelectedSection()
         }
@@ -778,8 +653,8 @@ Happy presenting! [wave]
         } else {
             let result = service.saveAllDirtyPagesRespectingAccess()
             if !result.skippedLockedPageIDs.isEmpty {
-                dropAlertTitle = "Lite Save"
-                dropError = "Only your active Lite page was saved. Upgrade to save across all pages."
+                dropAlertTitle = "Save Incomplete"
+                dropError = "Some pages could not be saved."
             }
         }
     }
@@ -810,18 +685,10 @@ Happy presenting! [wave]
         }
     }
 
-    private func run(skipTrialOffer: Bool = false) {
+    private func run() {
         guard ensureEntitlementsResolvedForSensitiveAction() else { return }
         entitlements.refreshPresentationState()
         entitlements.enforceAllowedSettings()
-        syncLiteSelection()
-        syncDowngradeRouteIfNeeded()
-
-        if !skipTrialOffer && !entitlements.hasStartedTrial && !entitlements.hasLifetimePurchase {
-            pendingTrialAction = .startSequence
-            modalCoordinator.present(.trialOffer(action: .startSequence))
-            return
-        }
 
         switch service.startAvailabilityReason {
         case .ready:
@@ -850,7 +717,6 @@ Happy presenting! [wave]
             service.clearReadState()
             entitlements.refreshPresentationState()
             entitlements.enforceAllowedSettings()
-            syncDowngradeRouteIfNeeded()
             NSApp.activate(ignoringOtherApps: true)
             NSApp.windows.first?.makeKeyAndOrderFront(nil)
         }
@@ -859,10 +725,6 @@ Happy presenting! [wave]
     }
 
     private func handlePresentationDrop(url: URL) {
-        guard entitlements.has(.pptxImport) else {
-            presentPaywall(.pptxImport)
-            return
-        }
         guard service.confirmDiscardIfNeeded() else { return }
         service.importPresentation(from: url)
     }
@@ -894,12 +756,6 @@ Happy presenting! [wave]
             applyOnboardingDraft(completion.draft)
         }
 
-        if completion.shouldStartTrial {
-            _ = entitlements.startTrialIfNeeded()
-            NotchSettings.shared.listeningMode = .wordTracking
-            entitlements.refreshPresentationState()
-        }
-
         if completion.markOnboardingComplete {
             onboardingCompleted = true
             onboardingVersion = FocusCueOnboardingStorage.currentVersion
@@ -909,14 +765,9 @@ Happy presenting! [wave]
             onboardingLastCompletedStep = completion.draft.lastVisitedStep.rawValue
         }
 
-        if completion.shouldPresentUpgrade {
-            presentPaywall(.generalAccess)
-            return
-        }
-
         if completion.launchGuidedTemplate {
             settingsGuidedTemplateDraft = nil
-            let shouldApplyDraftBeforeStart = !completion.applyDraft && !completion.shouldStartTrial
+            let shouldApplyDraftBeforeStart = !completion.applyDraft
             startGuidedTemplate(from: completion.draft, applyDraftBeforeStart: shouldApplyDraftBeforeStart)
             return
         }
@@ -950,156 +801,32 @@ Happy presenting! [wave]
         startGuidedTemplate(from: draft)
     }
 
-    private func openDraft(skipTrialOffer: Bool = false) {
+    private func openDraft() {
         guard ensureEntitlementsResolvedForSensitiveAction() else { return }
         entitlements.refreshPresentationState()
         entitlements.enforceAllowedSettings()
-        syncDowngradeRouteIfNeeded()
-
-        if !skipTrialOffer && !entitlements.hasStartedTrial && !entitlements.hasLifetimePurchase {
-            pendingTrialAction = .openDraft
-            modalCoordinator.present(.trialOffer(action: .openDraft))
-            return
-        }
 
         modalCoordinator.present(.draft)
-    }
-
-    private func executePendingTrialAction(skipTrialOffer: Bool) {
-        let action = pendingTrialAction
-        pendingTrialAction = nil
-
-        switch action {
-        case .startSequence:
-            run(skipTrialOffer: skipTrialOffer)
-        case .openDraft:
-            openDraft(skipTrialOffer: skipTrialOffer)
-        case .none:
-            break
-        }
-    }
-
-    private func purchasePro() {
-        Task {
-            let hadLifetimePurchaseBefore = entitlements.hasLifetimePurchase
-            let didPurchase = await entitlements.purchaseLifetimeUnlock()
-            if didPurchase {
-                let newlyGainedPro = !hadLifetimePurchaseBefore && entitlements.hasLifetimePurchase
-                if newlyGainedPro {
-                    applyPostProUnlockExperience(source: .purchase)
-                    return
-                }
-                entitlements.enforceAllowedSettings()
-                dismissTopPaywallIfNeeded()
-                dismissTrialOfferIfNeeded()
-                syncDowngradeRouteIfNeeded()
-                executePendingTrialAction(skipTrialOffer: true)
-            }
-        }
-    }
-
-    private func restorePurchases() {
-        Task {
-            let hadLifetimePurchaseBefore = entitlements.hasLifetimePurchase
-            await entitlements.restorePurchases()
-            if entitlements.hasLifetimePurchase {
-                let newlyGainedPro = !hadLifetimePurchaseBefore && entitlements.hasLifetimePurchase
-                if newlyGainedPro {
-                    applyPostProUnlockExperience(source: .restore)
-                    return
-                }
-                entitlements.enforceAllowedSettings()
-                dismissTopPaywallIfNeeded()
-                dismissTrialOfferIfNeeded()
-                syncDowngradeRouteIfNeeded()
-                executePendingTrialAction(skipTrialOffer: true)
-            }
-        }
     }
 
     private func processPendingCommands() {
         let commands = commandCoordinator.drainCommands()
         for command in commands {
             switch command {
-            case .presentPaywall(let feature):
-                presentPaywall(feature)
-            case .restorePurchases:
-                restorePurchases()
+            case .openSettings:
+                presentSettings()
             }
-        }
-    }
-
-    private func applyPostProUnlockExperience(source: ProUnlockSource) {
-        entitlements.enforceAllowedSettings()
-        NotchSettings.shared.listeningMode = .wordTracking
-        syncDowngradeRouteIfNeeded()
-        modalCoordinator.present(.proUnlocked(source: source))
-    }
-
-    private func presentLitePageOptions(for pageID: UUID) {
-        modalCoordinator.present(.litePageAccess(pageID: pageID))
-    }
-
-    private func activateLitePage(_ pageID: UUID) {
-        entitlements.makeLitePageActive(pageID, in: service.workspace)
-        withAnimation(currentTheme.spring(.snappy)) {
-            service.selectPage(pageID)
-        }
-    }
-
-    private func syncLiteSelection() {
-        entitlements.syncLiteUnlockedPage(with: service.workspace)
-        if entitlements.tier == .lite,
-           let liteUnlockedPageID = entitlements.liteUnlockedPageID,
-           service.selectedPageID != liteUnlockedPageID {
-            service.selectPage(liteUnlockedPageID)
         }
     }
 
     private func ensureEntitlementsResolvedForSensitiveAction() -> Bool {
         guard entitlements.hasResolvedPurchaseState else {
             entitlements.handleAppLaunch()
-            dropAlertTitle = "Checking Pro Access"
-            dropError = "Please wait a moment while FocusCue verifies your Pro access."
+            dropAlertTitle = "Checking Access"
+            dropError = "Please wait a moment while FocusCue prepares access."
             return false
         }
         return true
-    }
-
-    private func presentPaywall(_ feature: FeatureGate) {
-        if let activeRoute = modalCoordinator.activeRoute,
-           case .paywall(_) = activeRoute {
-            modalCoordinator.replaceTop(with: .paywall(feature: feature))
-        } else {
-            modalCoordinator.push(.paywall(feature: feature))
-        }
-    }
-
-    private func dismissTopPaywallIfNeeded() {
-        if let activeRoute = modalCoordinator.activeRoute,
-           case .paywall(_) = activeRoute {
-            modalCoordinator.pop()
-        }
-    }
-
-    private func dismissTrialOfferIfNeeded() {
-        if let activeRoute = modalCoordinator.activeRoute,
-           case .trialOffer(_) = activeRoute {
-            modalCoordinator.pop()
-        }
-    }
-
-    private func syncDowngradeRouteIfNeeded() {
-        guard entitlements.shouldPresentDowngradeNotice else {
-            if let activeRoute = modalCoordinator.activeRoute,
-               case .downgrade = activeRoute {
-                modalCoordinator.pop()
-            }
-            return
-        }
-
-        guard modalCoordinator.activeRoute == nil else { return }
-        modalCoordinator.present(.downgrade)
     }
 }
 

@@ -665,6 +665,27 @@ class FocusCueService: NSObject {
         }
     }
 
+    func showMainWindow(activate: Bool = true) {
+        DispatchQueue.main.async {
+            if self.launchedExternally {
+                self.launchedExternally = false
+            }
+            NSApp.setActivationPolicy(.regular)
+
+            for window in NSApp.windows where !(window is NSPanel) {
+                window.makeKeyAndOrderFront(nil)
+                if activate {
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                return
+            }
+
+            if activate {
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
+    }
+
     // MARK: - File operations
 
     func saveFile() {
@@ -763,10 +784,6 @@ class FocusCueService: NSObject {
     }
 
     func importPresentation(from url: URL) {
-        guard EntitlementService.shared.has(.pptxImport) else {
-            NotificationCenter.default.post(name: .presentPaywall, object: FeatureGate.pptxImport.rawValue)
-            return
-        }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             do {
                 let notes = try PresentationNotesExtractor.extractNotes(from: url)

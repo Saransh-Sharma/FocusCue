@@ -7,7 +7,6 @@ import SwiftUI
 
 struct DraftSessionView: View {
     @State private var draftService = ScriptDraftService()
-    @State private var entitlements = EntitlementService.shared
     @State private var editableTranscript: String = ""
     @State private var phase: Phase = .recording
 
@@ -223,39 +222,23 @@ struct DraftSessionView: View {
                     .buttonStyle(.bordered)
                     .controlSize(.regular)
 
-                    if DistributionFeatures.aiDraftRefinementVisible {
-                        Button {
-                            guard entitlements.has(.aiRefinement) else {
-                                onBlockedFeature(.aiRefinement)
-                                return
-                            }
-                            draftService.rawTranscript = editableTranscript
-                            withAnimation(theme.animation(.base)) {
-                                phase = .refined
-                            }
-                            draftService.refine()
-                        } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 11))
-                                Text("Refine Script")
-                                    .fcTypography(.label)
-                                if !entitlements.has(.aiRefinement) {
-                                    Text("Pro")
-                                        .fcTypography(.caption)
-                                        .foregroundStyle(theme.color(.accentPrimary))
-                                        .padding(.horizontal, FCSpacingToken.s4.rawValue)
-                                        .padding(.vertical, 2)
-                                        .background(
-                                            Capsule(style: .continuous)
-                                                .fill(theme.color(.accentPrimary).opacity(0.14))
-                                        )
-                                }
-                            }
+Button {
+                        draftService.rawTranscript = editableTranscript
+                        withAnimation(theme.animation(.base)) {
+                            phase = .refined
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.regular)
-                        .disabled(editableTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        draftService.refine()
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 11))
+                            Text("Refine with AI")
+                                .fcTypography(.label)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
+                    .disabled(editableTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
 

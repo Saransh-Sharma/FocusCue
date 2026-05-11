@@ -11,12 +11,11 @@ extension Notification.Name {
     static let openSettings = Notification.Name("openSettings")
     static let openAbout = Notification.Name("openAbout")
     static let openOnboarding = Notification.Name("openOnboarding")
-    static let presentPaywall = Notification.Name("presentPaywall")
-    static let dismissPaywall = Notification.Name("dismissPaywall")
-    static let restorePurchases = Notification.Name("restorePurchases")
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+    private var statusItem: NSStatusItem?
+
     func applicationWillFinishLaunching(_ notification: Notification) {
         NSWindow.allowsAutomaticWindowTabbing = false
         let launchedByURL: Bool
@@ -57,6 +56,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // Start browser server if enabled
         FocusCueService.shared.updateBrowserServer()
+        configureStatusItem()
 
         // Set window delegate to intercept close, disable tabs and fullscreen
         DispatchQueue.main.async {
@@ -80,8 +80,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func removeUnwantedMenus() {
         guard let mainMenu = NSApp.mainMenu else { return }
-        // Remove View and Window menus (keep Edit for copy/paste)
-        let menusToRemove = ["View", "Window"]
+        // Keep the Window menu so App Review and users can reopen the hidden main window.
+        let menusToRemove = ["View"]
         for title in menusToRemove {
             if let index = mainMenu.items.firstIndex(where: { $0.title == title }) {
                 mainMenu.removeItem(at: index)
@@ -102,10 +102,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         if !flag {
             // Show existing window instead of letting SwiftUI create a duplicate
-            for window in NSApp.windows where !(window is NSPanel) {
-                window.makeKeyAndOrderFront(nil)
-                return false
-            }
+            FocusCueService.shared.showMainWindow()
+            return false
         }
         return true
     }
@@ -115,10 +113,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             if url.pathExtension == "focuscue" {
                 FocusCueService.shared.openFileAtURL(url)
                 // Show the main window for file opens
-                for window in NSApp.windows where !(window is NSPanel) {
-                    window.makeKeyAndOrderFront(nil)
-                }
-                NSApp.activate(ignoringOtherApps: true)
+                FocusCueService.shared.showMainWindow()
             } else {
                 let wasExternal = FocusCueService.shared.launchedExternally
                 FocusCueService.shared.launchedExternally = true
@@ -129,6 +124,37 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 FocusCueService.shared.handleURL(url)
             }
         }
+    }
+
+    private func configureStatusItem() {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.button?.image = NSImage(systemSymbolName: "text.alignleft", accessibilityDescription: "FocusCue")
+        item.button?.imagePosition = .imageLeading
+        item.button?.toolTip = "FocusCue"
+
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "Show FocusCue", action: #selector(showFocusCueFromStatusItem), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Settings...", action: #selector(openSettingsFromStatusItem), keyEquivalent: ""))
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(NSMenuItem(title: "Quit FocusCue", action: #selector(quitFromStatusItem), keyEquivalent: "q"))
+        for menuItem in menu.items {
+            menuItem.target = self
+        }
+        item.menu = menu
+        statusItem = item
+    }
+
+    @objc private func showFocusCueFromStatusItem() {
+        FocusCueService.shared.showMainWindow()
+    }
+
+    @objc private func openSettingsFromStatusItem() {
+        FocusCueService.shared.showMainWindow()
+        NotificationCenter.default.post(name: .openSettings, object: nil)
+    }
+
+    @objc private func quitFromStatusItem() {
+        NSApp.terminate(nil)
     }
 }
 
@@ -164,16 +190,10 @@ struct FocusCueApp: App {
             }
             CommandGroup(after: .appSettings) {
                 Button("Settings…") {
+                    FocusCueService.shared.showMainWindow()
                     NotificationCenter.default.post(name: .openSettings, object: nil)
                 }
                 .keyboardShortcut(",", modifiers: .command)
-                Divider()
-                Button("Upgrade to Pro") {
-                    AppCommandCoordinator.shared.enqueuePresentPaywall(feature: .generalAccess)
-                }
-                Button("Restore Purchases") {
-                    AppCommandCoordinator.shared.enqueueRestorePurchases()
-                }
             }
             CommandGroup(replacing: .newItem) {
                 Button("Open…") {
@@ -193,9 +213,15 @@ struct FocusCueApp: App {
                 }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
             }
-            CommandGroup(replacing: .windowArrangement) { }
+            CommandGroup(replacing: .windowArrangement) {
+                Button("Show FocusCue Window") {
+                    FocusCueService.shared.showMainWindow()
+                }
+                .keyboardShortcut("0", modifiers: [.command, .shift])
+            }
             CommandGroup(replacing: .help) {
                 Button("Getting Started…") {
+                    FocusCueService.shared.showMainWindow()
                     NotificationCenter.default.post(name: .openOnboarding, object: nil)
                 }
                 Divider()

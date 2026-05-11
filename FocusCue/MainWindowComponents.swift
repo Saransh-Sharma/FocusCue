@@ -86,8 +86,6 @@ struct FCWindowHeader: View {
     let subtitle: String
     @Bindable var entitlements: EntitlementService
     var compact: Bool = false
-    var onUpgrade: () -> Void = {}
-    var onRestore: () -> Void = {}
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -119,9 +117,7 @@ struct FCWindowHeader: View {
                 .layoutPriority(1)
                 Spacer()
                 FCInlineEntitlementWidget(
-                    entitlements: entitlements,
-                    onUpgrade: onUpgrade,
-                    onRestore: onRestore
+                    entitlements: entitlements
                 )
             }
         }
@@ -378,10 +374,10 @@ private struct FCSidebarPageRow: View {
                                 onBeginRename()
                             }
 
-                        if row.isLiteActive {
-                            tag(theme: theme, title: "Lite Active", color: .accentInfo)
-                        } else if row.isLocked {
-                            tag(theme: theme, title: "Pro", color: .accentPrimary)
+                        if row.isLocked {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(theme.color(.textTertiary))
                         } else if row.needsSave || row.saveFailed {
                             Circle()
                                 .fill(theme.color(.stateWarning))
@@ -448,7 +444,7 @@ private struct FCSidebarPageRow: View {
         }
         .contextMenu {
             if row.isLocked {
-                Button("Use This Page in Lite", action: onSelectLocked)
+                Button("Select Page", action: onSelectLocked)
             } else {
                 if row.canSave && (row.needsSave || row.saveFailed) {
                     Button("Save", action: onSave)
@@ -517,9 +513,6 @@ struct FCActionBar: View {
         }
         switch startAvailabilityReason {
         case .ready:
-            if accessTier == .lite {
-                return "Starts from the active Lite page only. Upgrade to play full multi-page sequences."
-            }
             return "Starts from the selected live page and continues through remaining pages."
         case .noSelection:
             return "Select a page in Live Transcripts to enable Start."
@@ -593,9 +586,8 @@ struct FCActionBar: View {
                     FCActionTile(title: "Draft", icon: "mic.badge.plus", accent: .accentCTA, action: onDraft)
                     FCActionTile(
                         title: "Add Page",
-                        icon: accessTier == .lite ? "lock.fill" : "plus.square.on.square",
+                        icon: "plus.square.on.square",
                         accent: .accentPrimary,
-                        badge: accessTier == .lite ? "Pro" : nil,
                         action: onAddPage
                     )
                     FCActionTile(title: "Settings", icon: "slider.horizontal.3", accent: .accentInfo, action: onSettings)

@@ -139,7 +139,7 @@ struct NotchPreviewContent: View {
     @Bindable var settings: NotchSettings
     let menuBarHeight: CGFloat
 
-    private static let loremWords = "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur Excepteur sint occaecat cupidatat non proident sunt in culpa qui officia deserunt mollit anim id est laborum Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium totam rem aperiam eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt".split(separator: " ").map(String.init)
+    private static let previewWords = "Welcome to FocusCue. Keep your script near the camera, speak at a natural pace, and let the teleprompter follow along while you present. Adjust the overlay until the words feel calm, readable, and ready for your next recording or live call.".split(separator: " ").map(String.init)
 
     private let highlightedCount = 42
     @State private var previewWordProgress: Double = 0
@@ -194,8 +194,8 @@ struct NotchPreviewContent: View {
                     .frame(height: topPadding)
 
                     SpeechScrollView(
-                        words: Self.loremWords,
-                        highlightedCharCount: settings.listeningMode == .wordTracking ? highlightedCount : Self.loremWords.count * 5,
+                        words: Self.previewWords,
+                        highlightedCharCount: settings.listeningMode == .wordTracking ? highlightedCount : Self.previewWords.count * 5,
                         font: settings.font,
                         highlightColor: settings.fontColorPreset.color,
                         smoothScroll: settings.listeningMode != .wordTracking,
@@ -246,7 +246,7 @@ struct NotchPreviewContent: View {
         }
         .onReceive(scrollTimer) { _ in
             guard settings.listeningMode != .wordTracking else { return }
-            let wordCount = Double(Self.loremWords.count)
+            let wordCount = Double(Self.previewWords.count)
             previewWordProgress += settings.scrollSpeed * 0.05
             if previewWordProgress >= wordCount {
                 previewWordProgress = 0
@@ -301,8 +301,6 @@ struct SettingsView: View {
     @Bindable var settings: NotchSettings
     let launchedFromOnboarding: Bool
     let onReturnToGuidedTemplate: (() -> Void)?
-    let onUpgrade: () -> Void
-    let onRestorePurchases: () -> Void
     let onBlockedFeature: (FeatureGate) -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -347,15 +345,11 @@ struct SettingsView: View {
         initialTab: SettingsTab = .display,
         launchedFromOnboarding: Bool = false,
         onReturnToGuidedTemplate: (() -> Void)? = nil,
-        onUpgrade: @escaping () -> Void,
-        onRestorePurchases: @escaping () -> Void,
         onBlockedFeature: @escaping (FeatureGate) -> Void
     ) {
         self.settings = settings
         self.launchedFromOnboarding = launchedFromOnboarding
         self.onReturnToGuidedTemplate = onReturnToGuidedTemplate
-        self.onUpgrade = onUpgrade
-        self.onRestorePurchases = onRestorePurchases
         self.onBlockedFeature = onBlockedFeature
         _selectedTab = State(initialValue: initialTab)
     }
@@ -531,10 +525,6 @@ struct SettingsView: View {
                 onboardingCallout
             }
 
-            if entitlements.tier != .pro {
-                monetizationCallout
-            }
-
             Group {
                 switch selectedTab {
                 case .display:
@@ -549,35 +539,7 @@ struct SettingsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private var monetizationCallout: some View {
-        VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
-            HStack(spacing: FCSpacingToken.s8.rawValue) {
-                FCTierBadge(brandState: entitlements.brandState)
-                Spacer()
-                Button("Upgrade to Pro") {
-                    onUpgrade()
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(theme.color(.accentPrimary))
-                .fcTypography(.label)
-                Button("Restore Purchases") {
-                    onRestorePurchases()
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(theme.color(.accentInfo))
-                .fcTypography(.label)
-            }
-
-            FCSettingsInlineNotice(
-                kind: .info,
-                text: entitlements.tier == .trial
-                    ? entitlements.statusFootnote
-                    : "Lite keeps core settings available, while Word Tracking, fullscreen, external output, browser remote, PPTX import, and automatic page turns are Pro."
-            )
-        }
-    }
-
-    private var onboardingCallout: some View {
+private var onboardingCallout: some View {
         VStack(alignment: .leading, spacing: FCSpacingToken.s8.rawValue) {
             Text("Advanced setup for your FocusCue experience")
                 .foregroundStyle(theme.color(.textPrimary))
