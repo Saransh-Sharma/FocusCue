@@ -59,6 +59,18 @@ Happy presenting! [wave]
         service.sidebarSections.first(where: { $0.kind == .archive })?.pages ?? []
     }
 
+    private var selectedSidebarRow: SidebarPageRowModel? {
+        guard let selectedPageID = service.selectedPageID,
+              let selectedModule = service.selectedPageModule else {
+            return nil
+        }
+        return sidebarRows(for: selectedModule).first { $0.id == selectedPageID }
+    }
+
+    private var selectedPageSaveFailed: Bool {
+        selectedSidebarRow?.saveFailed ?? false
+    }
+
     private var shouldPresentOnboardingOnLaunch: Bool {
         !onboardingCompleted || onboardingVersion < FocusCueOnboardingStorage.currentVersion
     }
@@ -208,7 +220,7 @@ Happy presenting! [wave]
                     Text("Delete \"\(title)\" permanently? This removes the page from FocusCue. If a draft file exists, it will be moved to Trash.")
                 }
             }
-            .frame(minWidth: 920, minHeight: 540)
+            .frame(minWidth: 720, minHeight: 540)
             .sheet(
                 isPresented: Binding(
                     get: { modalCoordinator.activeRoute != nil },
@@ -338,13 +350,14 @@ Happy presenting! [wave]
     @ViewBuilder
     private func editorPanel(theme: FCTheme, minHeight: CGFloat) -> some View {
         let canEditSelectedPage = entitlements.canPerform(.editText, on: service.selectedPageID, in: service.workspace)
+        let hasSaveFailure = selectedPageSaveFailed
 
         FCGlassPanel {
             VStack(alignment: .leading, spacing: FCSpacingToken.s12.rawValue) {
                 HStack(spacing: FCSpacingToken.s8.rawValue) {
                     Text("Script Editor")
                         .foregroundStyle(theme.color(.textPrimary))
-                        .fcTypography(.heading)
+                        .fcTypography(.titleSm)
                         .lineLimit(1)
                         .layoutPriority(1)
 
@@ -360,18 +373,30 @@ Happy presenting! [wave]
                     .padding(FCSpacingToken.s12.rawValue)
                     .background(
                         RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                            .fill(theme.color(.surfaceGlassStrong).opacity(0.84))
+                            .fill(theme.color(.surfaceInset))
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
                             .stroke(
-                                isTextFocused ? theme.color(.borderFocus) : theme.color(.borderSubtle),
-                                lineWidth: isTextFocused ? FCStrokeToken.medium.rawValue : FCStrokeToken.thin.rawValue
+                                hasSaveFailure
+                                    ? theme.color(.resyncViolet)
+                                    : (isTextFocused ? theme.color(.cueMint) : theme.color(.frameGray)),
+                                lineWidth: (hasSaveFailure || isTextFocused) ? FCStrokeToken.medium.rawValue : FCStrokeToken.thin.rawValue
                             )
                     )
                     .focused($isTextFocused)
                     .disabled(!canEditSelectedPage)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+                if hasSaveFailure {
+                    HStack(spacing: FCSpacingToken.s6.rawValue) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("SAVE FAILED. CHECK FILE ACCESS AND TRY AGAIN.")
+                            .fcTypography(.labelCaps)
+                    }
+                    .foregroundStyle(theme.color(.resyncViolet))
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
@@ -416,7 +441,7 @@ Happy presenting! [wave]
                     .fcTypography(.caption)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(theme.color(.accentInfo))
+            .foregroundStyle(theme.color(.cueMint))
         }
     }
 
@@ -438,7 +463,7 @@ Happy presenting! [wave]
                         .fcTypography(.caption)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(theme.color(.accentInfo))
+                .foregroundStyle(theme.color(.teleprompterOrange))
                 .opacity(canMoveSelectedPage ? 1 : 0.4)
             } else {
                 Button {
@@ -453,7 +478,7 @@ Happy presenting! [wave]
                         .fcTypography(.caption)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(theme.color(.accentPrimary))
+                .foregroundStyle(theme.color(.cueMint))
                 .opacity(canMoveSelectedPage ? 1 : 0.4)
             }
         }
@@ -474,7 +499,7 @@ Happy presenting! [wave]
                     .fcTypography(.caption)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(theme.color(.stateError))
+            .foregroundStyle(theme.color(.recordingPink))
             .disabled(!service.canDeletePages || !canDeleteSelectedPage)
             .opacity((service.canDeletePages && canDeleteSelectedPage) ? 1 : 0.4)
         }
@@ -586,7 +611,7 @@ Happy presenting! [wave]
 
                 if modalCoordinator.stack.count > 1,
                    let overlayRoute = modalCoordinator.activeRoute {
-                    Color.black.opacity(0.16)
+                    currentTheme.color(.absoluteBlack).opacity(0.56)
                         .ignoresSafeArea()
 
                     modalOverlayContent(for: overlayRoute)
@@ -834,9 +859,15 @@ Happy presenting! [wave]
 
 struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+
+    private var theme: FCTheme {
+        FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
     }
 
     var body: some View {
@@ -845,15 +876,16 @@ struct AboutView: View {
 
             VStack(spacing: 4) {
                 Text("FocusCue")
-                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(theme.color(.textPrimary))
+                    .fcTypography(.titleMd)
                 Text("Version \(appVersion)")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.color(.textSecondary))
+                    .fcTypography(.monoTimestamp)
             }
 
             Text("A camera-first macOS teleprompter that keeps your script close, calm, and ready to deliver.")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(theme.color(.textSecondary))
+                .fcTypography(.bodyCompact)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 16)
 
@@ -865,10 +897,11 @@ struct AboutView: View {
                         Text("GitHub")
                             .font(.system(size: 12, weight: .medium))
                     }
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(theme.color(.cueMint))
                     .padding(.horizontal, 14)
                     .padding(.vertical, 7)
-                    .background(Color.primary.opacity(0.08))
+                    .background(theme.color(.canvasBlack))
+                    .overlay(Capsule(style: .continuous).stroke(theme.color(.cueMint), lineWidth: FCStrokeToken.thin.rawValue))
                     .clipShape(Capsule())
                 }
 
@@ -876,39 +909,52 @@ struct AboutView: View {
                     HStack(spacing: 5) {
                         Image(systemName: "heart.fill")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.pink)
+                            .foregroundStyle(theme.color(.recordingPink))
                         Text("Donate")
                             .font(.system(size: 12, weight: .medium))
                     }
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(theme.color(.recordingPink))
                     .padding(.horizontal, 14)
                     .padding(.vertical, 7)
-                    .background(Color.pink.opacity(0.1))
+                    .background(theme.color(.canvasBlack))
+                    .overlay(Capsule(style: .continuous).stroke(theme.color(.recordingPink), lineWidth: FCStrokeToken.thin.rawValue))
                     .clipShape(Capsule())
                 }
             }
 
-            Divider().padding(.horizontal, 20)
+            Rectangle()
+                .fill(theme.color(.frameGray))
+                .frame(height: 1)
+                .padding(.horizontal, 20)
 
             VStack(spacing: 4) {
                 Text("Made by Fatih Kadir Akin")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .fcTypography(.caption)
+                    .foregroundStyle(theme.color(.textSecondary))
                 Text("Original idea by Semih Kışlar")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
+                    .fcTypography(.caption)
+                    .foregroundStyle(theme.color(.textTertiary))
             }
 
             Button("OK") {
                 dismiss()
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.plain)
+            .foregroundStyle(theme.color(.absoluteBlack))
+            .fcTypography(.monoButton)
+            .padding(.horizontal, FCSpacingToken.s20.rawValue)
+            .padding(.vertical, FCSpacingToken.s8.rawValue)
+            .background(Capsule(style: .continuous).fill(theme.color(.cueMint)))
             .controlSize(.small)
             .padding(.top, 4)
         }
         .padding(24)
         .frame(width: 320)
-        .background(.ultraThinMaterial)
+        .background(theme.color(.surfaceSlate))
+        .overlay(
+            RoundedRectangle(cornerRadius: FCShapeToken.radius20.rawValue, style: .continuous)
+                .stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+        )
     }
 }
 
