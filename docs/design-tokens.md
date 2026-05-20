@@ -1,89 +1,77 @@
 # FocusCue Design Tokens
 
 ## Purpose
-This file defines the tokenized visual system used by the premium main window and onboarding wizard. All new UI in these surfaces should consume these tokens instead of ad hoc constants.
 
-Source of truth in code: `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/MainWindowTheme.swift`.
+This file documents the tokenized presentation layer used by FocusCue's macOS app surfaces. The visual source of truth is `/Users/saransh1337/Developer/Projects/FocusCue/FocusDesign.md`; the code source of truth is `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/MainWindowTheme.swift`.
+
+The system is dark-first and production-console oriented. New UI should use `FCTheme`, `FCColorToken`, `FCTypographyToken`, `FCSpacingToken`, and `FCShapeToken` instead of ad hoc visual constants.
 
 ## Color Tokens
-| Token | Light | Dark | Usage |
-|---|---|---|---|
-| `fc.bg.canvas` | `#F5F7FB` | `#090B10` | Window background base |
-| `fc.bg.canvasTop` | `#FFFFFF` | `#131824` | Gradient top |
-| `fc.bg.canvasBottom` | `#EAF0F9` | `#090B10` | Gradient bottom |
-| `fc.surface.glass` | `rgba(255,255,255,0.74)` | `rgba(21,27,39,0.78)` | Primary cards |
-| `fc.surface.glassStrong` | `rgba(255,255,255,0.90)` | `rgba(27,34,48,0.90)` | Active cards |
-| `fc.surface.overlay` | `rgba(245,251,255,0.82)` | `rgba(14,18,26,0.86)` | Overlays |
-| `fc.border.subtle` | `rgba(152,170,199,0.34)` | `rgba(186,201,227,0.22)` | Subtle borders |
-| `fc.border.focus` | `rgba(61,142,255,0.62)` | `rgba(126,182,255,0.56)` | Focus ring |
-| `fc.text.primary` | `#0E1525` | `#F2F6FF` | Primary text |
-| `fc.text.secondary` | `#475774` | `#B2C1D9` | Secondary text |
-| `fc.text.tertiary` | `#6C7B95` | `#8A98AF` | Meta labels |
-| `fc.accent.primary` | `#1DB6A8` | `#35D0C1` | Primary CTA |
-| `fc.accent.info` | `#3C8DFF` | `#71A9FF` | Informational accents |
-| `fc.accent.cta` | `#F59A43` | `#FFB36D` | Featured CTA |
-| `fc.state.success` | `#1FA972` | `#34D399` | Success states |
-| `fc.state.warning` | `#D98A2A` | `#F4B45F` | Warning states |
-| `fc.state.error` | `#D4545D` | `#FF7B87` | Error states |
+
+| Token | Value | Usage |
+|---|---:|---|
+| `canvasBlack` | `#131313` | Root app canvas and default app background |
+| `surfaceSlate` | `#2D2D2D` | Settings cards, secondary panels, inactive controls |
+| `surfaceRaised` | `#1B1B1B` | Header/sidebar raised strips and active containers |
+| `surfaceInset` | `#0F0F0F` | Script editor, remote output wells, embedded readouts |
+| `absoluteBlack` | `#000000` | Live overlay, fullscreen, external display, browser remote |
+| `frameGray` | `#313131` | 1px borders, dividers, control frames |
+| `hazardWhite` / `textPrimary` | `#FFFFFF` | High-priority text and critical borders |
+| `textSecondary` | `#949494` | Secondary text and helper copy |
+| `textMuted` | `#E9E9E9` | Muted but readable text on black |
+| `cueMint` | `#3CFFD0` | Ready, start, selected, synced, active states |
+| `cueMintBorder` | `#309875` | Restrained mint border when fill would vibrate |
+| `resyncViolet` | `#5200FF` | Smart resync, assisted recovery, exceptional errors |
+| `violetRule` | `#3D00BF` | Timeline rail and structural rule accent |
+| `hoverBlue` | `#3860BE` | Link-like hover and secondary navigation emphasis |
+| `focusCyan` | `#1EAEDB` | Keyboard focus only |
+| `readYellow` | `#FFD60A` | Current read progress and active word cues |
+| `recordingPink` | `#FF6191` | Recording, microphone capture, stop/urgent controls |
+| `teleprompterOrange` | `#FF9E0A` | Output routing, import, external display states |
+| `stateSuccess` | `#22C55E` | Read/done/success markers |
+| `stateWarning` | `#FACC15` | Dirty or incomplete states |
+| `disabledGray` | `#5A5A5A` | Locked and unavailable controls |
+
+The only retained compatibility aliases are `accentPrimary`, `borderFocus`, and legacy background canvas names used by older preview/debug code. Production UI should use explicit FocusDesign token names.
 
 ## Typography Tokens
-| Token | Family | Size/Line | Weight | Usage |
-|---|---|---|---|---|
-| `fc.type.display` | SF Pro Display | 34/40 | Semibold | Main hero |
-| `fc.type.titleL` | SF Pro Display | 28/34 | Semibold | Section title |
-| `fc.type.titleM` | SF Pro Display | 22/28 | Semibold | Card title |
-| `fc.type.heading` | SF Pro Text | 18/24 | Semibold | Subsection heading |
-| `fc.type.bodyL` | SF Pro Text | 15/22 | Regular | Long body |
-| `fc.type.bodyM` | SF Pro Text | 14/20 | Regular | Standard body |
-| `fc.type.label` | SF Pro Text | 13/18 | Semibold | Controls/chips |
-| `fc.type.caption` | SF Pro Text | 12/16 | Medium | Metadata |
-| `fc.type.mono` | SF Mono | 12/16 | Semibold | Counters |
 
-## Motion Tokens
-### Durations
-- `fc.motion.duration.fast = 0.16s`
-- `fc.motion.duration.base = 0.24s`
-- `fc.motion.duration.slow = 0.32s`
-- `fc.motion.duration.emphasized = 0.42s`
+| Token | Size | Role |
+|---|---:|---|
+| `displayHero` | `72` | Rare brand/onboarding title moments |
+| `displayCompact` | `60` | Compact brand/onboarding display |
+| `titleLg` | `34` | Major panel and onboarding headings |
+| `titleMd` | `24` | Section titles |
+| `titleSm` | `20` | Dense panel headings |
+| `body` | `16` | Readable explanatory text |
+| `bodyCompact` | `13` | Helper copy, settings rows, captions |
+| `scriptLg` / `scriptXl` / `scriptDisplay` | `24 / 48 / 72` | Teleprompter reading surfaces |
+| `labelCaps`, `monoTimestamp`, `monoButton`, `counter` | `10-12` | Uppercase operator metadata, buttons, counters |
 
-### Curves
-- `fc.motion.curve.standard = easeInOut`
-- `fc.motion.curve.enter = cubic(0.18, 0.90, 0.22, 1.00)`
-- `fc.motion.curve.exit = cubic(0.40, 0.00, 1.00, 1.00)`
+Mono labels are uppercase in UI copy. Use display typography only for onboarding or brand-focused empty states, never for normal controls.
 
-### Springs
-- `fc.motion.spring.snappy = response 0.30, damping 0.86`
-- `fc.motion.spring.soft = response 0.42, damping 0.88`
-- `fc.motion.spring.emphasis = response 0.56, damping 0.80`
+## Shape, Spacing, And Motion
 
-## Shape, Spacing, and Effects
-### Spacing scale
-`4, 8, 12, 16, 20, 24, 32, 40`
+- Spacing follows the FocusDesign 8px rhythm with `2`, `4`, and `6` for dense internals and `20-32` for panel padding.
+- Standard panels use `20px`; feature/primary groups use `24px`; overlays use `16px`; capsules use `999px`.
+- Normal hierarchy uses borders, insets, underlines, and solid fills. Do not use gradients, glows, decorative blur fields, or shadows for regular app surfaces.
+- Motion must go through `FCTheme.animation()` or `FCTheme.spring()` so Reduce Motion can fall back to lower-movement transitions.
 
-### Radius scale
-`10, 14, 18, 24, capsule(999)`
+## Component Rules
 
-### Stroke widths
-`1, 1.5, 2`
+- Main window: `canvasBlack` root, `surfaceSlate`/`surfaceInset` panels, timeline rail, editor-dominant layout.
+- Page rail: violet structural rail, uppercase mono metadata, mint selected state, amber dirty state, violet save-failed state, visible lock marker.
+- Script editor: `surfaceInset`, frame-gray rest border, mint focus border, no nested cards.
+- Run controls: mint Start with black uppercase mono text; recording-pink Stop; orange output/import; violet assisted recovery.
+- Settings: dense operator rows, slate cards, clear state badges, no decorative previews of secrets.
+- Delivery surfaces: `absoluteBlack`, large script text, minimal telemetry, read-yellow/cue-mint progress.
 
-### Shadow tokens
-- `fc.shadow.soft: y=6, blur=20, opacity=0.12`
-- `fc.shadow.float: y=14, blur=36, opacity=0.18`
-- `fc.shadow.focusGlow: accent glow, opacity=0.26`
+## Banned Patterns
 
-### Material tokens
-- `fc.material.card = .ultraThinMaterial`
-- `fc.material.sheet = .regularMaterial`
-- `fc.material.overlay = .thinMaterial`
-
-## Accessibility Constraints
-- Body-text contrast target minimum: 4.5:1.
-- Interactive controls should not go below 32x32 points.
-- When `Reduce Motion` is enabled:
-  - avoid movement greater than 12 points,
-  - replace move/spring emphasis with opacity-first transitions.
-- Focus-visible state should use `fc.border.focus` with subtle glow.
-
-## Implementation Notes
-- The token preview utility view is at `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/DesignTokenPreviewView.swift` and is debug-only.
-- Any new main-window or onboarding UI should consume `FCTheme` and token enums.
+- No light default app surface.
+- No soft dashboard glass, decorative blur fields, color orbs, glow shadows, or atmospheric gradients.
+- No drop shadows for normal hierarchy.
+- No nested cards.
+- No lowercase mono labels.
+- No emoji in browser remote, waiting states, settings notices, onboarding, or delivery UI.
+- No new accent colors unless they map to a real FocusCue state.
