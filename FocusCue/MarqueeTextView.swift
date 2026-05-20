@@ -562,7 +562,7 @@ struct AudioWaveformProgressView: View {
 
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(isLit
-                          ? Color.yellow.opacity(0.9)
+                          ? Color(red: 1.0, green: 0.84, blue: 0.04).opacity(0.9)
                           : Color.white.opacity(0.15)
                     )
                     .frame(width: 3, height: max(3, level * 28))
