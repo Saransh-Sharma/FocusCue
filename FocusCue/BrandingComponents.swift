@@ -29,15 +29,18 @@ struct FCBrandIconView: View {
                     .interpolation(.high)
             } else {
                 shape
-                    .fill(theme.color(.surfaceGlassStrong))
+                    .fill(theme.color(.surfaceRaised))
+                    .overlay(
+                        Text("FC")
+                            .foregroundStyle(theme.color(.cueMint))
+                            .fcTypography(.labelCaps)
+                    )
             }
         }
         .frame(width: size, height: size)
         .clipShape(shape)
-        .shadow(
-            color: shadowRadius > 0 ? theme.color(.accentInfo).opacity(0.18) : .clear,
-            radius: shadowRadius,
-            y: shadowRadius > 0 ? 2 : 0
+        .overlay(
+            shape.stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
         )
     }
 }
