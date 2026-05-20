@@ -294,21 +294,17 @@ struct OnboardingWizardView: View {
                         .fcTypography(.caption)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(theme.color(.accentInfo))
+                .foregroundStyle(theme.color(.hoverBlue))
             }
 
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule(style: .continuous)
-                        .fill(theme.color(.borderSubtle))
+                        .fill(theme.color(.frameGray))
 
                     Capsule(style: .continuous)
                         .fill(
-                            LinearGradient(
-                                colors: [theme.color(.accentInfo), theme.color(.accentPrimary)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
+                            theme.color(.cueMint)
                         )
                         .frame(width: geo.size.width * progress)
                         .animation(theme.animation(.base), value: progress)
@@ -404,7 +400,7 @@ struct OnboardingWizardView: View {
                     icon: ListeningMode.wordTracking.icon,
                     title: "Word Tracking",
                     description: "Highlights each word you say for precise alignment.",
-                    accent: .accentInfo,
+                    accent: .cueMint,
                     isSelected: draft.listeningMode == .wordTracking
                 ) {
                     draft.listeningMode = .wordTracking
@@ -415,7 +411,7 @@ struct OnboardingWizardView: View {
                     icon: ListeningMode.silencePaused.icon,
                     title: "Voice-Activated",
                     description: "Scrolls while you speak and pauses when you stop.",
-                    accent: .accentPrimary,
+                    accent: .recordingPink,
                     isSelected: draft.listeningMode == .silencePaused
                 ) {
                     draft.listeningMode = .silencePaused
@@ -426,7 +422,7 @@ struct OnboardingWizardView: View {
                     icon: ListeningMode.classic.icon,
                     title: "Classic",
                     description: "Steady scrolling without listening to your voice.",
-                    accent: .accentCTA,
+                    accent: .teleprompterOrange,
                     isSelected: draft.listeningMode == .classic
                 ) {
                     draft.listeningMode = .classic
@@ -469,7 +465,7 @@ struct OnboardingWizardView: View {
                     icon: "rectangle.topthird.inset.filled",
                     title: "Pinned to Notch",
                     description: "Keeps FocusCue near your camera for natural eye contact.",
-                    accent: .accentInfo,
+                    accent: .cueMint,
                     isSelected: draft.overlayMode == .pinned
                 ) {
                     draft.overlayMode = .pinned
@@ -480,7 +476,7 @@ struct OnboardingWizardView: View {
                     icon: "macwindow.on.rectangle",
                     title: "Floating Window",
                     description: "A movable always-on-top teleprompter you can place anywhere.",
-                    accent: .accentPrimary,
+                    accent: .teleprompterOrange,
                     isSelected: draft.overlayMode == .floating
                 ) {
                     draft.overlayMode = .floating
@@ -491,7 +487,7 @@ struct OnboardingWizardView: View {
                     icon: "rectangle.fill",
                     title: "Fullscreen",
                     description: "A dedicated fullscreen teleprompter for studio-style presentations.",
-                    accent: .accentCTA,
+                    accent: .teleprompterOrange,
                     isSelected: draft.overlayMode == .fullscreen
                 ) {
                     draft.overlayMode = .fullscreen
@@ -564,7 +560,7 @@ struct OnboardingWizardView: View {
 
             HStack(spacing: FCSpacingToken.s8.rawValue) {
                 statusBadge(theme: theme, title: currentStatus.title, color: statusColor)
-                statusBadge(theme: theme, title: required ? "Required" : "Optional", color: required ? .accentInfo : .textTertiary)
+                statusBadge(theme: theme, title: required ? "Required" : "Optional", color: required ? .cueMint : .textTertiary)
             }
 
             FCSettingsInlineNotice(kind: statusNoticeKind(for: kind), text: permissionSupportText(for: kind))
@@ -608,7 +604,7 @@ struct OnboardingWizardView: View {
                 onboardingCTAButton(
                     theme: theme,
                     title: primaryActionTitle,
-                    gradient: [.accentCTA, .accentPrimary]
+                    accent: .cueMint
                 ) {
                     handlePrimaryAction()
                 }
@@ -619,7 +615,7 @@ struct OnboardingWizardView: View {
                             goBack()
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(theme.color(.accentInfo))
+                        .foregroundStyle(theme.color(.hoverBlue))
                         .fcTypography(.bodyM)
                     }
 
@@ -629,7 +625,7 @@ struct OnboardingWizardView: View {
                         continueInSettings()
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(theme.color(.accentInfo))
+                    .foregroundStyle(theme.color(.hoverBlue))
                     .fcTypography(.bodyM)
 
                 }
@@ -643,30 +639,21 @@ struct OnboardingWizardView: View {
     private func onboardingCTAButton(
         theme: FCTheme,
         title: String,
-        gradient: [FCColorToken] = [.accentInfo, .accentPrimary],
+        accent: FCColorToken = .cueMint,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Text(title)
-                .foregroundStyle(.white)
-                .fcTypography(.heading)
+                .foregroundStyle(accent == .cueMint ? theme.color(.absoluteBlack) : theme.color(.hazardWhite))
+                .fcTypography(.monoButton)
+                .textCase(.uppercase)
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: gradient.map { theme.color($0) },
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
+                        .fill(theme.color(accent))
                 )
-                .shadow(
-                    color: theme.color(gradient[0]).opacity(0.30),
-                    radius: 12,
-                    y: 4
-                )
+                .overlay(Capsule(style: .continuous).stroke(theme.color(accent == .cueMint ? .cueMintBorder : accent), lineWidth: FCStrokeToken.thin.rawValue))
         }
         .keyboardShortcut(.defaultAction)
         .buttonStyle(.plain)
@@ -679,7 +666,7 @@ struct OnboardingWizardView: View {
                     goBack()
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(theme.color(.accentInfo))
+                .foregroundStyle(theme.color(.cueMint))
                 .fcTypography(.bodyM)
             }
 
@@ -730,12 +717,12 @@ struct OnboardingWizardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                    .fill(isSelected ? theme.color(accent).opacity(0.14) : theme.color(.surfaceOverlay).opacity(0.66))
+                    .fill(isSelected ? theme.color(.canvasBlack) : theme.color(.surfaceInset))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
                     .stroke(
-                        isSelected ? theme.color(.borderFocus) : theme.color(.borderSubtle).opacity(0.56),
+                        isSelected ? theme.color(accent) : theme.color(.frameGray),
                         lineWidth: isSelected ? FCStrokeToken.medium.rawValue : FCStrokeToken.thin.rawValue
                     )
             )
@@ -749,7 +736,7 @@ struct OnboardingWizardView: View {
         HStack(spacing: FCSpacingToken.s4.rawValue) {
             Image(systemName: icon)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(theme.color(.accentInfo))
+                .foregroundStyle(theme.color(.cueMint))
             Text(text)
                 .foregroundStyle(theme.color(.textSecondary))
                 .fcTypography(.caption)
@@ -758,11 +745,11 @@ struct OnboardingWizardView: View {
         .padding(.vertical, 6)
         .background(
             Capsule(style: .continuous)
-                .fill(theme.color(.surfaceOverlay).opacity(0.72))
+                .fill(theme.color(.canvasBlack))
         )
         .overlay(
             Capsule(style: .continuous)
-                .stroke(theme.color(.borderSubtle).opacity(0.55), lineWidth: FCStrokeToken.thin.rawValue)
+                .stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
         )
     }
 
@@ -774,7 +761,8 @@ struct OnboardingWizardView: View {
             .padding(.vertical, FCSpacingToken.s4.rawValue)
             .background(
                 Capsule(style: .continuous)
-                    .fill(theme.color(color).opacity(0.14))
+                .fill(theme.color(color).opacity(0.14))
+                .overlay(Capsule(style: .continuous).stroke(theme.color(color), lineWidth: FCStrokeToken.thin.rawValue))
             )
     }
 
@@ -793,11 +781,11 @@ struct OnboardingWizardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                .fill(theme.color(.surfaceOverlay).opacity(0.72))
+                .fill(theme.color(.surfaceInset))
         )
         .overlay(
             RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                .stroke(theme.color(.borderSubtle).opacity(0.58), lineWidth: FCStrokeToken.thin.rawValue)
+                .stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
         )
     }
 
