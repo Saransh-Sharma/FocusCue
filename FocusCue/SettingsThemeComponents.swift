@@ -15,7 +15,7 @@ enum FCSettingsNoticeKind {
 
     var tint: FCColorToken {
         switch self {
-        case .info: return .accentInfo
+        case .info: return .focusCyan
         case .warning: return .stateWarning
         case .success: return .stateSuccess
         }
@@ -56,10 +56,10 @@ struct FCSettingsShell<Sidebar: View, Content: View, Footer: View>: View {
                         .frame(width: sidebarWidth)
                         .padding(.vertical, FCSpacingToken.s12.rawValue)
                         .padding(.horizontal, FCSpacingToken.s8.rawValue)
-                        .background(theme.color(.surfaceGlassStrong).opacity(0.36))
+                        .background(theme.color(.surfaceRaised))
 
                     Rectangle()
-                        .fill(theme.color(.borderSubtle))
+                        .fill(theme.color(.frameGray))
                         .frame(width: 1)
 
                     content
@@ -68,25 +68,19 @@ struct FCSettingsShell<Sidebar: View, Content: View, Footer: View>: View {
                 }
 
                 Rectangle()
-                    .fill(theme.color(.borderSubtle))
+                    .fill(theme.color(.frameGray))
                     .frame(height: 1)
 
                 footer
                     .padding(.horizontal, FCSpacingToken.s12.rawValue)
                     .padding(.vertical, FCSpacingToken.s8.rawValue)
-                    .background(theme.color(.surfaceGlassStrong).opacity(0.30))
+                    .background(theme.color(.surfaceRaised))
             }
-            .background(theme.material(.sheet), in: shape)
-            .background(theme.color(.surfaceGlassStrong).opacity(0.88), in: shape)
+            .background(theme.color(.surfaceSlate), in: shape)
             .clipShape(shape)
             .overlay(
                 shape
-                    .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.medium.rawValue)
-            )
-            .shadow(
-                color: Color.black.opacity(FCEffectToken.shadowFloat.opacity),
-                radius: FCEffectToken.shadowFloat.blur,
-                y: FCEffectToken.shadowFloat.yOffset
+                    .stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
             )
             .padding(FCSpacingToken.s12.rawValue)
         }
@@ -175,19 +169,19 @@ struct FCSettingsTabItem<Label: View>: View {
 
     private func backgroundColor(theme: FCTheme) -> Color {
         if isSelected {
-            return theme.color(.accentInfo).opacity(0.20)
+            return theme.color(.canvasBlack)
         }
         if isHovered {
-            return theme.color(.surfaceGlassStrong).opacity(0.50)
+            return theme.color(.surfaceRaised)
         }
-        return theme.color(.surfaceGlass).opacity(0.35)
+        return theme.color(.surfaceSlate)
     }
 
     private func borderColor(theme: FCTheme) -> Color {
         if isSelected {
-            return theme.color(.borderFocus)
+            return theme.color(.cueMint)
         }
-        return theme.color(.borderSubtle).opacity(isHovered ? 0.70 : 0.45)
+        return isHovered ? theme.color(.hoverBlue) : theme.color(.frameGray)
     }
 }
 
@@ -246,12 +240,11 @@ struct FCSettingsSectionCard<Content: View, Trailing: View>: View {
             content
         }
         .padding(FCSpacingToken.s12.rawValue)
-        .background(theme.material(.card), in: shape)
-        .background(theme.color(.surfaceGlass).opacity(0.78), in: shape)
+        .background(theme.color(.surfaceSlate), in: shape)
         .clipShape(shape)
         .overlay(
             shape
-                .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+                .stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
         )
     }
 }
@@ -266,7 +259,7 @@ struct FCSettingsOptionCard<Content: View>: View {
 
     init(
         isSelected: Bool,
-        accent: FCColorToken = .accentInfo,
+        accent: FCColorToken = .cueMint,
         @ViewBuilder content: () -> Content
     ) {
         self.isSelected = isSelected
@@ -284,12 +277,12 @@ struct FCSettingsOptionCard<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 shape
-                    .fill(isSelected ? theme.color(accent).opacity(0.16) : theme.color(.surfaceOverlay).opacity(0.66))
+                    .fill(isSelected ? theme.color(.canvasBlack) : theme.color(.surfaceInset))
             )
             .overlay(
                 shape
                     .stroke(
-                        isSelected ? theme.color(.borderFocus) : theme.color(.borderSubtle).opacity(0.56),
+                        isSelected ? theme.color(accent) : theme.color(.frameGray),
                         lineWidth: isSelected ? FCStrokeToken.medium.rawValue : FCStrokeToken.thin.rawValue
                     )
             )
@@ -319,11 +312,11 @@ struct FCSettingsInlineNotice: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                .fill(theme.color(kind.tint).opacity(0.10))
+                .fill(theme.color(.surfaceInset))
         )
         .overlay(
             RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                .stroke(theme.color(kind.tint).opacity(0.28), lineWidth: FCStrokeToken.thin.rawValue)
+                .stroke(theme.color(kind.tint), lineWidth: FCStrokeToken.thin.rawValue)
         )
     }
 }
@@ -350,7 +343,8 @@ struct FCSettingsStatusBadge: View {
         .padding(.vertical, 4)
         .background(
             Capsule(style: .continuous)
-                .fill(theme.color(kind.tint).opacity(0.16))
+                .fill(theme.color(.canvasBlack))
+                .overlay(Capsule(style: .continuous).stroke(theme.color(kind.tint), lineWidth: FCStrokeToken.thin.rawValue))
         )
     }
 }
