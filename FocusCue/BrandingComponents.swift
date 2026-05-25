@@ -40,7 +40,7 @@ struct FCBrandIconView: View {
         .frame(width: size, height: size)
         .clipShape(shape)
         .overlay(
-            shape.stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+            shape.stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
         )
     }
 }
