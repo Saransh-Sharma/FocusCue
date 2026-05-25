@@ -580,14 +580,14 @@ private var onboardingCallout: some View {
                 )
                 .overlay(
                     Capsule(style: .continuous)
-                        .stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+                        .stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
                 )
 
                 Button("Reset App & Start Setup Again") {
                     showResetAppConfirmation = true
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(theme.color(.stateError))
+                .foregroundStyle(theme.color(.dangerText))
                 .fcTypography(.label)
                 .padding(.horizontal, FCSpacingToken.s12.rawValue)
                 .padding(.vertical, FCSpacingToken.s8.rawValue)
@@ -597,7 +597,7 @@ private var onboardingCallout: some View {
                 )
                 .overlay(
                     Capsule(style: .continuous)
-                        .stroke(theme.color(.stateError).opacity(0.25), lineWidth: FCStrokeToken.thin.rawValue)
+                        .stroke(theme.color(.dangerText), lineWidth: FCStrokeToken.thin.rawValue)
                 )
             }
 
@@ -608,7 +608,7 @@ private var onboardingCallout: some View {
             }
             .keyboardShortcut(.defaultAction)
             .buttonStyle(.plain)
-            .foregroundStyle(theme.color(.absoluteBlack))
+            .foregroundStyle(theme.onAccentForeground(for: .cueMint))
             .fcTypography(.monoButton)
             .padding(.horizontal, FCSpacingToken.s20.rawValue)
             .padding(.vertical, FCSpacingToken.s8.rawValue)
@@ -782,7 +782,7 @@ private var onboardingCallout: some View {
                                         .frame(width: 22, height: 22)
                                         .overlay(
                                             Circle()
-                                                .strokeBorder(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+                                                .strokeBorder(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
                                         )
                                         .overlay(
                                             Group {
@@ -1159,7 +1159,7 @@ private var onboardingCallout: some View {
                                     .clipShape(RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous))
                                     .overlay(
                                         RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                                            .stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+                                            .stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
                                     )
                                 Spacer()
                             }
@@ -1218,7 +1218,7 @@ private var onboardingCallout: some View {
                                         .overlay(
                                             RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
                                                 .stroke(
-                                                    browserPortValidation == nil ? theme.color(.frameGray) : theme.color(.stateWarning),
+                                                    browserPortValidation == nil ? theme.color(.controlBorder) : theme.color(.stateWarning),
                                                     lineWidth: FCStrokeToken.thin.rawValue
                                                 )
                                         )
@@ -1328,7 +1328,7 @@ private var onboardingCallout: some View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                        .stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+                        .stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
                 )
 
             if let description {

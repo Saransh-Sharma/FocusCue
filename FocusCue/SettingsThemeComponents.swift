@@ -59,7 +59,7 @@ struct FCSettingsShell<Sidebar: View, Content: View, Footer: View>: View {
                         .background(theme.color(.surfaceRaised))
 
                     Rectangle()
-                        .fill(theme.color(.frameGray))
+                        .fill(theme.color(.controlBorder))
                         .frame(width: 1)
 
                     content
@@ -68,7 +68,7 @@ struct FCSettingsShell<Sidebar: View, Content: View, Footer: View>: View {
                 }
 
                 Rectangle()
-                    .fill(theme.color(.frameGray))
+                    .fill(theme.color(.controlBorder))
                     .frame(height: 1)
 
                 footer
@@ -80,7 +80,7 @@ struct FCSettingsShell<Sidebar: View, Content: View, Footer: View>: View {
             .clipShape(shape)
             .overlay(
                 shape
-                    .stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+                    .stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
             )
             .padding(FCSpacingToken.s12.rawValue)
         }
@@ -181,7 +181,7 @@ struct FCSettingsTabItem<Label: View>: View {
         if isSelected {
             return theme.color(.cueMint)
         }
-        return isHovered ? theme.color(.hoverBlue) : theme.color(.frameGray)
+        return isHovered ? theme.color(.hoverBlue) : theme.color(.controlBorder)
     }
 }
 
@@ -244,7 +244,7 @@ struct FCSettingsSectionCard<Content: View, Trailing: View>: View {
         .clipShape(shape)
         .overlay(
             shape
-                .stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+                .stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
         )
     }
 }
@@ -282,7 +282,7 @@ struct FCSettingsOptionCard<Content: View>: View {
             .overlay(
                 shape
                     .stroke(
-                        isSelected ? theme.color(accent) : theme.color(.frameGray),
+                        isSelected ? theme.color(accent) : theme.color(.controlBorder),
                         lineWidth: isSelected ? FCStrokeToken.medium.rawValue : FCStrokeToken.thin.rawValue
                     )
             )
