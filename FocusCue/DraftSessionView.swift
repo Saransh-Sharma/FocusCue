@@ -48,7 +48,7 @@ struct DraftSessionView: View {
             .padding(.bottom, FCSpacingToken.s12.rawValue)
 
             Rectangle()
-                .fill(theme.color(.frameGray))
+                .fill(theme.color(.controlBorder))
                 .frame(height: 1)
 
             switch phase {
@@ -61,7 +61,7 @@ struct DraftSessionView: View {
             }
 
             Rectangle()
-                .fill(theme.color(.frameGray))
+                .fill(theme.color(.controlBorder))
                 .frame(height: 1)
 
             actionBar(theme: theme)
@@ -72,7 +72,7 @@ struct DraftSessionView: View {
         .background(theme.color(.surfaceSlate))
         .overlay(
             RoundedRectangle(cornerRadius: FCShapeToken.radius20.rawValue, style: .continuous)
-                .stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+                .stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
         )
         .onAppear {
             draftService.startRecording()
@@ -204,6 +204,7 @@ struct DraftSessionView: View {
 
             switch phase {
             case .recording:
+                let canStop = !draftService.rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 Button {
                     draftService.stopRecording()
                     editableTranscript = draftService.rawTranscript
@@ -219,14 +220,16 @@ struct DraftSessionView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(theme.color(.hazardWhite))
+                .foregroundStyle(canStop ? theme.onAccentForeground(for: .recordingPink) : theme.color(.textDisabled))
                 .padding(.horizontal, FCSpacingToken.s16.rawValue)
                 .padding(.vertical, FCSpacingToken.s8.rawValue)
-                .background(Capsule(style: .continuous).fill(theme.color(.recordingPink)))
+                .background(Capsule(style: .continuous).fill(canStop ? theme.color(.recordingPink) : theme.color(.surfaceInset)))
+                .overlay(Capsule(style: .continuous).stroke(canStop ? theme.color(.recordingPink) : theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                 .controlSize(.regular)
-                .disabled(draftService.rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(!canStop)
 
             case .review:
+                let canRefine = !editableTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 HStack(spacing: FCSpacingToken.s8.rawValue) {
                     Button {
                         onAccept(editableTranscript)
@@ -258,15 +261,17 @@ struct DraftSessionView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(theme.color(.hazardWhite))
+                    .foregroundStyle(canRefine ? theme.onAccentForeground(for: .resyncViolet) : theme.color(.textDisabled))
                     .padding(.horizontal, FCSpacingToken.s12.rawValue)
                     .padding(.vertical, FCSpacingToken.s8.rawValue)
-                    .background(Capsule(style: .continuous).fill(theme.color(.resyncViolet)))
+                    .background(Capsule(style: .continuous).fill(canRefine ? theme.color(.resyncViolet) : theme.color(.surfaceInset)))
+                    .overlay(Capsule(style: .continuous).stroke(canRefine ? theme.color(.resyncVioletText) : theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                     .controlSize(.regular)
-                    .disabled(editableTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(!canRefine)
                 }
 
             case .refined:
+                let canUseRefined = !draftService.isRefining && !draftService.refinedText.isEmpty
                 HStack(spacing: FCSpacingToken.s8.rawValue) {
                     Button {
                         withAnimation(theme.animation(.base)) {
@@ -281,7 +286,7 @@ struct DraftSessionView: View {
                     .padding(.horizontal, FCSpacingToken.s12.rawValue)
                     .padding(.vertical, FCSpacingToken.s8.rawValue)
                     .background(Capsule(style: .continuous).fill(theme.color(.canvasBlack)))
-                    .overlay(Capsule(style: .continuous).stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue))
+                    .overlay(Capsule(style: .continuous).stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                     .controlSize(.regular)
 
                     Button {
@@ -296,12 +301,13 @@ struct DraftSessionView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(theme.color(.absoluteBlack))
+                    .foregroundStyle(canUseRefined ? theme.onAccentForeground(for: .cueMint) : theme.color(.textDisabled))
                     .padding(.horizontal, FCSpacingToken.s12.rawValue)
                     .padding(.vertical, FCSpacingToken.s8.rawValue)
-                    .background(Capsule(style: .continuous).fill(theme.color(.cueMint)))
+                    .background(Capsule(style: .continuous).fill(canUseRefined ? theme.color(.cueMint) : theme.color(.surfaceInset)))
+                    .overlay(Capsule(style: .continuous).stroke(canUseRefined ? theme.color(.cueMintBorder) : theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                     .controlSize(.regular)
-                    .disabled(draftService.isRefining || draftService.refinedText.isEmpty)
+                    .disabled(!canUseRefined)
                 }
             }
         }
