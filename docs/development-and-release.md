@@ -38,7 +38,7 @@ FocusCue is distributed as a free app with all Pro workflows enabled by default.
 
 ```bash
 xcodebuild build \
-  -project /Users/saransh1337/Developer/Projects/FocusCue/FocusCue.xcodeproj \
+  -project FocusCue.xcodeproj \
   -scheme FocusCue \
   -configuration Debug \
   -destination "platform=macOS" \
@@ -49,7 +49,7 @@ xcodebuild build \
 
 ```bash
 xcodebuild build \
-  -project /Users/saransh1337/Developer/Projects/FocusCue/FocusCue.xcodeproj \
+  -project FocusCue.xcodeproj \
   -scheme "FocusCue Direct Debug" \
   -configuration DirectDebug \
   -destination "platform=macOS" \
@@ -59,7 +59,7 @@ xcodebuild build \
 ## Local universal binary + DMG build
 
 ```bash
-bash /Users/saransh1337/Developer/Projects/FocusCue/build.sh
+bash build.sh
 ```
 
 `build.sh` performs:
@@ -71,7 +71,7 @@ bash /Users/saransh1337/Developer/Projects/FocusCue/build.sh
 It now uses `FocusCue Direct Release` with `DirectRelease`, so local DMGs preserve the non-App-Store updater and cloud-integration surface.
 
 Artifacts are written under:
-- `/Users/saransh1337/Developer/Projects/FocusCue/build/release/`
+- `build/release/`
 
 ## Build system structure
 
