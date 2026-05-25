@@ -310,7 +310,6 @@ Happy presenting! [wave]
             archivePages: archiveSidebarRows,
             canAddPages: entitlements.has(.multiPageEditing),
             canDeletePages: service.canDeletePages,
-            selectedModule: service.selectedPageModule,
             onSelectPage: { pageID in
                 withAnimation(theme.spring(.snappy)) {
                     service.selectPage(pageID)

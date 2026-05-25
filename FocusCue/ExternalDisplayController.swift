@@ -194,7 +194,7 @@ struct ExternalDisplayView: View {
             }
         }
         .scaleEffect(x: mirrorAxis?.scaleX ?? 1, y: mirrorAxis?.scaleY ?? 1)
-        .animation(.easeInOut(duration: 0.5), value: isDone)
+        .animation(theme.animation(.emphasized), value: isDone)
         .onChange(of: isDone) { _, done in
             if done {
                 speechRecognizer.stop()
