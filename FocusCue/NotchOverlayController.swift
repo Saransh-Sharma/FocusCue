@@ -840,6 +840,7 @@ struct NotchOverlayView: View {
     @ViewBuilder
     private var prompterView: some View {
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+        let controlSize: CGFloat = 32
 
         VStack(spacing: 0) {
             SpeechScrollView(
@@ -866,7 +867,7 @@ struct NotchOverlayView: View {
             )
             .padding(.horizontal, 12)
             .padding(.top, 6)
-            .transition(.move(edge: .top).combined(with: .opacity))
+            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
 
             Group {
             HStack(alignment: .center, spacing: 8) {
@@ -898,7 +899,7 @@ struct NotchOverlayView: View {
                             Image(systemName: "forward.fill")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(theme.color(.textSecondary))
-                                .frame(width: 24, height: 24)
+                                .frame(width: controlSize, height: controlSize)
                                 .background(theme.color(.surfaceInset))
                                 .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
@@ -917,7 +918,7 @@ struct NotchOverlayView: View {
                             Image(systemName: "backward.end.fill")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(theme.color(.textSecondary))
-                                .frame(width: 24, height: 24)
+                                .frame(width: controlSize, height: controlSize)
                                 .background(theme.color(.surfaceInset))
                                 .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
@@ -939,7 +940,7 @@ struct NotchOverlayView: View {
                         Image(systemName: isPaused ? "play.fill" : "pause.fill")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(isPaused ? theme.color(.textSecondary) : theme.color(.readYellow))
-                            .frame(width: 24, height: 24)
+                            .frame(width: controlSize, height: controlSize)
                             .background(theme.color(.surfaceInset))
                             .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                             .clipShape(Circle())
@@ -956,7 +957,7 @@ struct NotchOverlayView: View {
                         Image(systemName: speechRecognizer.isListening ? "mic.fill" : "mic.slash.fill")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(speechRecognizer.isListening ? theme.color(.readYellow) : theme.color(.textSecondary))
-                            .frame(width: 24, height: 24)
+                            .frame(width: controlSize, height: controlSize)
                             .background(theme.color(.surfaceInset))
                             .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                             .clipShape(Circle())
@@ -971,14 +972,14 @@ struct NotchOverlayView: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(theme.color(.textSecondary))
-                        .frame(width: 24, height: 24)
+                        .frame(width: controlSize, height: controlSize)
                         .background(theme.color(.surfaceInset))
                         .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
             }
-            .frame(height: 24)
+            .frame(height: controlSize)
             .padding(.horizontal, 12)
             .padding(.bottom, 10)
 
@@ -1014,11 +1015,11 @@ struct NotchOverlayView: View {
                         NSCursor.pop()
                     }
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
             }
             .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(theme.animation(.fast)) {
                     isHovering = hovering
                 }
             }
@@ -1125,7 +1126,7 @@ struct NotchOverlayView: View {
                             .font(.system(size: 22, weight: .heavy, design: .rounded))
                             .foregroundStyle(theme.color(.readYellow))
                             .contentTransition(.numericText())
-                            .animation(.easeInOut(duration: 0.3), value: countdownRemaining)
+                            .animation(theme.animation(.slow), value: countdownRemaining)
                     }
                     Button {
                         cancelCountdown()
@@ -1350,6 +1351,7 @@ struct FloatingOverlayView: View {
     @ViewBuilder
     private var floatingPrompterView: some View {
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+        let controlSize: CGFloat = 32
 
         VStack(spacing: 0) {
             SpeechScrollView(
@@ -1405,7 +1407,7 @@ struct FloatingOverlayView: View {
                             Image(systemName: "forward.fill")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(theme.color(.textSecondary))
-                                .frame(width: 24, height: 24)
+                                .frame(width: controlSize, height: controlSize)
                                 .background(theme.color(.surfaceInset))
                                 .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
@@ -1424,7 +1426,7 @@ struct FloatingOverlayView: View {
                             Image(systemName: "backward.end.fill")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(theme.color(.textSecondary))
-                                .frame(width: 24, height: 24)
+                                .frame(width: controlSize, height: controlSize)
                                 .background(theme.color(.surfaceInset))
                                 .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
@@ -1447,7 +1449,7 @@ struct FloatingOverlayView: View {
                             Image(systemName: isPaused ? "play.fill" : "pause.fill")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(isPaused ? theme.color(.textSecondary) : theme.color(.readYellow))
-                                .frame(width: 24, height: 24)
+                                .frame(width: controlSize, height: controlSize)
                                 .background(theme.color(.surfaceInset))
                                 .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
@@ -1464,7 +1466,7 @@ struct FloatingOverlayView: View {
                             Image(systemName: speechRecognizer.isListening ? "mic.fill" : "mic.slash.fill")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(speechRecognizer.isListening ? theme.color(.readYellow) : theme.color(.textSecondary))
-                                .frame(width: 24, height: 24)
+                                .frame(width: controlSize, height: controlSize)
                                 .background(theme.color(.surfaceInset))
                                 .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
@@ -1479,7 +1481,7 @@ struct FloatingOverlayView: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(theme.color(.textSecondary))
-                            .frame(width: 24, height: 24)
+                            .frame(width: controlSize, height: controlSize)
                             .background(theme.color(.surfaceInset))
                             .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                             .clipShape(Circle())
@@ -1487,7 +1489,7 @@ struct FloatingOverlayView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .frame(height: 24)
+            .frame(height: controlSize)
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
         }
@@ -1591,7 +1593,7 @@ struct FloatingOverlayView: View {
                             .font(.system(size: 28, weight: .heavy, design: .rounded))
                             .foregroundStyle(theme.color(.readYellow))
                             .contentTransition(.numericText())
-                            .animation(.easeInOut(duration: 0.3), value: countdownRemaining)
+                            .animation(theme.animation(.slow), value: countdownRemaining)
                     }
                     if followingCursor {
                         Text("Next Page")
