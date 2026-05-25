@@ -15,21 +15,26 @@ The system is dark-first and production-console oriented. New UI should use `FCT
 | `surfaceRaised` | `#1B1B1B` | Header/sidebar raised strips and active containers |
 | `surfaceInset` | `#0F0F0F` | Script editor, remote output wells, embedded readouts |
 | `absoluteBlack` | `#000000` | Live overlay, fullscreen, external display, browser remote |
-| `frameGray` | `#313131` | 1px borders, dividers, control frames |
+| `frameGray` | `#313131` | Quiet dividers and non-state separators |
+| `controlBorder` | `#7A7A7A` | Control frames, visible inactive borders, waveform idle marks |
 | `hazardWhite` / `textPrimary` | `#FFFFFF` | High-priority text and critical borders |
-| `textSecondary` | `#949494` | Secondary text and helper copy |
+| `textSecondary` | `#B8B8B8` | Secondary text and helper copy |
+| `textTertiary` | `#A7A7A7` | Tertiary metadata that still needs AA contrast |
 | `textMuted` | `#E9E9E9` | Muted but readable text on black |
+| `textDisabled` | `#A7A7A7` | Disabled or locked labels without dimming entire controls |
 | `cueMint` | `#3CFFD0` | Ready, start, selected, synced, active states |
 | `cueMintBorder` | `#309875` | Restrained mint border when fill would vibrate |
-| `resyncViolet` | `#5200FF` | Smart resync, assisted recovery, exceptional errors |
+| `resyncViolet` | `#5200FF` | Dark filled smart-resync controls only |
+| `resyncVioletText` | `#B498FF` | Smart-resync text, outlines, and failure markers on dark surfaces |
 | `violetRule` | `#3D00BF` | Timeline rail and structural rule accent |
-| `hoverBlue` | `#3860BE` | Link-like hover and secondary navigation emphasis |
+| `hoverBlue` | `#6F9DFF` | Link-like hover and secondary navigation emphasis |
 | `focusCyan` | `#1EAEDB` | Keyboard focus only |
 | `readYellow` | `#FFD60A` | Current read progress and active word cues |
 | `recordingPink` | `#FF6191` | Recording, microphone capture, stop/urgent controls |
 | `teleprompterOrange` | `#FF9E0A` | Output routing, import, external display states |
 | `stateSuccess` | `#22C55E` | Read/done/success markers |
 | `stateWarning` | `#FACC15` | Dirty or incomplete states |
+| `dangerText` | `#FF5F8F` | Destructive text, warning outlines, denied permission text |
 | `disabledGray` | `#5A5A5A` | Locked and unavailable controls |
 
 The only retained compatibility aliases are `accentPrimary`, `borderFocus`, and legacy background canvas names used by older preview/debug code. Production UI should use explicit FocusDesign token names.
@@ -55,16 +60,18 @@ Mono labels are uppercase in UI copy. Use display typography only for onboarding
 - Spacing follows the FocusDesign 8px rhythm with `2`, `4`, and `6` for dense internals and `20-32` for panel padding.
 - Standard panels use `20px`; feature/primary groups use `24px`; overlays use `16px`; capsules use `999px`.
 - Normal hierarchy uses borders, insets, underlines, and solid fills. Do not use gradients, glows, decorative blur fields, or shadows for regular app surfaces.
+- Body, helper, disabled, and metadata text must stay at or above 4.5:1 contrast on `surfaceSlate`, `surfaceRaised`, `surfaceInset`, and `canvasBlack`.
+- Filled accent controls must use `FCTheme.onAccentForeground(for:)`; do not hard-code white text on mint, orange, yellow, pink, or readable blue/purple fills.
 - Motion must go through `FCTheme.animation()` or `FCTheme.spring()` so Reduce Motion can fall back to lower-movement transitions.
 
 ## Component Rules
 
 - Main window: `canvasBlack` root, `surfaceSlate`/`surfaceInset` panels, timeline rail, editor-dominant layout.
 - Page rail: violet structural rail, uppercase mono metadata, mint selected state, amber dirty state, violet save-failed state, visible lock marker.
-- Script editor: `surfaceInset`, frame-gray rest border, mint focus border, no nested cards.
-- Run controls: mint Start with black uppercase mono text; recording-pink Stop; orange output/import; violet assisted recovery.
+- Script editor: `surfaceInset`, `controlBorder` rest border, mint focus border, no nested cards.
+- Run controls: mint Start with readable dark uppercase mono text; recording-pink Stop uses the accent foreground helper; violet assisted recovery uses white only on dark violet fills.
 - Settings: dense operator rows, slate cards, clear state badges, no decorative previews of secrets.
-- Delivery surfaces: `absoluteBlack`, large script text, minimal telemetry, read-yellow/cue-mint progress.
+- Delivery surfaces: `absoluteBlack`, large script text, minimal telemetry, read-yellow/cue-mint progress, and dimmed words no lower than roughly 55% visibility.
 
 ## Banned Patterns
 
