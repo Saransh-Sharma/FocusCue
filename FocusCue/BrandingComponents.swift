@@ -3,15 +3,13 @@ import SwiftUI
 struct FCBrandIconView: View {
     let size: CGFloat
     let cornerRadius: CGFloat
-    let shadowRadius: CGFloat
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(size: CGFloat, cornerRadius: CGFloat, shadowRadius: CGFloat = 0) {
+    init(size: CGFloat, cornerRadius: CGFloat) {
         self.size = size
         self.cornerRadius = cornerRadius
-        self.shadowRadius = shadowRadius
     }
 
     private var brandImage: NSImage? {

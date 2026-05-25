@@ -25,7 +25,6 @@ enum FCColorToken: CaseIterable {
     case readYellow
     case recordingPink
     case teleprompterOrange
-    case disabledGray
     case textDisabled
     case controlBorder
     case resyncVioletText
@@ -88,8 +87,6 @@ enum FCColorToken: CaseIterable {
             return .fcHex(0x22C55E)
         case .stateWarning:
             return .fcHex(0xFACC15)
-        case .disabledGray:
-            return .fcHex(0x5A5A5A)
         case .textDisabled:
             return .fcHex(0xA7A7A7)
         case .controlBorder:
