@@ -31,8 +31,11 @@ colors:
   warning-amber: "#FACC15"
   danger-text: "#FF5F8F"
   error-violet: "#5200FF"
-  disabled-gray: "#5A5A5A"
   divider-white: "#FFFFFF"
+colorAliases:
+  text-inverted: canvas-black
+  error-violet: resync-violet
+  divider-white: hazard-white
 typography:
   display-hero:
     fontFamily: "CondensedDisplay, Impact, Helvetica Neue, sans-serif"
