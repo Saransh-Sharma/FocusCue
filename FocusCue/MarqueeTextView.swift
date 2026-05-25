@@ -554,7 +554,12 @@ struct AudioWaveformProgressView: View {
     let levels: [CGFloat]
     let progress: Double // 0.0 to 1.0
 
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+
         HStack(alignment: .center, spacing: 2) {
             ForEach(Array(levels.enumerated()), id: \.offset) { index, level in
                 let barProgress = Double(index) / Double(max(1, levels.count - 1))
@@ -562,11 +567,11 @@ struct AudioWaveformProgressView: View {
 
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(isLit
-                          ? Color(red: 1.0, green: 0.84, blue: 0.04).opacity(0.9)
-                          : Color.white.opacity(0.48)
+                          ? theme.color(.readYellow).opacity(0.9)
+                          : theme.color(.frameGray)
                     )
                     .frame(width: 3, height: max(3, level * 28))
-                    .animation(.easeOut(duration: 0.08), value: level)
+                    .animation(theme.animation(.fast), value: level)
             }
         }
     }
