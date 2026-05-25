@@ -4,12 +4,12 @@
 Text rendering engine and overlay system.
 
 ## 2. FocusCue files implemented
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/MarqueeTextView.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/NotchOverlayController.swift`
+- `FocusCue/MarqueeTextView.swift`
+- `FocusCue/NotchOverlayController.swift`
 
 ## 3. Reference files compared
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/MarqueeTextView.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/NotchOverlayController.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/MarqueeTextView.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/NotchOverlayController.swift`
 
 ## 4. Symbol parity check
 - Core tokenization/global helper retained.

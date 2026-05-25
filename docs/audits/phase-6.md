@@ -4,12 +4,12 @@
 External display output and browser server output.
 
 ## 2. FocusCue files implemented
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/ExternalDisplayController.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/BrowserServer.swift`
+- `FocusCue/ExternalDisplayController.swift`
+- `FocusCue/BrowserServer.swift`
 
 ## 3. Reference files compared
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/ExternalDisplayController.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/BrowserServer.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/ExternalDisplayController.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/BrowserServer.swift`
 
 ## 4. Symbol parity check
 - `BrowserState` payload structure retained.

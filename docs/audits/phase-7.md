@@ -4,14 +4,14 @@
 Build script and CI/release workflow parity.
 
 ## 2. FocusCue files implemented
-- `/Users/saransh1337/Developer/Projects/FocusCue/build.sh`
-- `/Users/saransh1337/Developer/Projects/FocusCue/.github/workflows/ci.yml`
-- `/Users/saransh1337/Developer/Projects/FocusCue/.github/workflows/release.yml`
+- `build.sh`
+- `.github/workflows/ci.yml`
+- `.github/workflows/release.yml`
 
 ## 3. Reference files compared
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/build.sh`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/.github/workflows/ci.yml`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/.github/workflows/release.yml`
+- `autoprompter-main/AutoPrompter/build.sh`
+- `autoprompter-main/.github/workflows/ci.yml`
+- `autoprompter-main/.github/workflows/release.yml`
 
 ## 4. Symbol parity check
 - Universal archive flow retained.

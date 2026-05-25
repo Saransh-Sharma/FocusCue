@@ -4,14 +4,14 @@
 Speech, Deepgram, and LLM resync integration.
 
 ## 2. FocusCue files implemented
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/SpeechRecognizer.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/DeepgramStreamer.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/LLMResyncService.swift`
+- `FocusCue/SpeechRecognizer.swift`
+- `FocusCue/DeepgramStreamer.swift`
+- `FocusCue/LLMResyncService.swift`
 
 ## 3. Reference files compared
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/SpeechRecognizer.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/DeepgramStreamer.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/LLMResyncService.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/SpeechRecognizer.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/DeepgramStreamer.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/LLMResyncService.swift`
 
 ## 4. Symbol parity check
 - Matching, retry, mic switching, and VAD fields retained.

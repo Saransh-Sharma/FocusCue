@@ -4,14 +4,14 @@
 Settings/service foundation and persistence/file/url/services paths.
 
 ## 2. FocusCue files implemented
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/NotchSettings.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/KeychainStore.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/FocusCueService.swift`
+- `FocusCue/NotchSettings.swift`
+- `FocusCue/KeychainStore.swift`
+- `FocusCue/FocusCueService.swift`
 
 ## 3. Reference files compared
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/NotchSettings.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/KeychainStore.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/AutoPrompterService.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/NotchSettings.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/KeychainStore.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/AutoPrompterService.swift`
 
 ## 4. Symbol parity check
 - Settings enums/defaults persisted with same semantics.
