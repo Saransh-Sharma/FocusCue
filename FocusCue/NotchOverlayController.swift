@@ -528,11 +528,11 @@ struct StopButtonView: View {
         Button(action: onStop) {
             Image(systemName: "stop.fill")
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(theme.color(.hazardWhite))
+                .foregroundStyle(theme.onAccentForeground(for: .recordingPink))
                 .frame(width: 36, height: 36)
                 .background(theme.color(.recordingPink))
                 .clipShape(Circle())
-                .overlay(Circle().stroke(theme.color(.hazardWhite), lineWidth: FCStrokeToken.thin.rawValue))
+                .overlay(Circle().stroke(theme.color(.dangerText), lineWidth: FCStrokeToken.thin.rawValue))
         }
         .buttonStyle(.plain)
     }
@@ -900,7 +900,7 @@ struct NotchOverlayView: View {
                                 .foregroundStyle(theme.color(.textSecondary))
                                 .frame(width: 24, height: 24)
                                 .background(theme.color(.surfaceInset))
-                                .overlay(Circle().stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue))
+                                .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -919,7 +919,7 @@ struct NotchOverlayView: View {
                                 .foregroundStyle(theme.color(.textSecondary))
                                 .frame(width: 24, height: 24)
                                 .background(theme.color(.surfaceInset))
-                                .overlay(Circle().stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue))
+                                .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -941,7 +941,7 @@ struct NotchOverlayView: View {
                             .foregroundStyle(isPaused ? theme.color(.textSecondary) : theme.color(.readYellow))
                             .frame(width: 24, height: 24)
                             .background(theme.color(.surfaceInset))
-                            .overlay(Circle().stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue))
+                            .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
@@ -958,7 +958,7 @@ struct NotchOverlayView: View {
                             .foregroundStyle(speechRecognizer.isListening ? theme.color(.readYellow) : theme.color(.textSecondary))
                             .frame(width: 24, height: 24)
                             .background(theme.color(.surfaceInset))
-                            .overlay(Circle().stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue))
+                            .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
@@ -973,7 +973,7 @@ struct NotchOverlayView: View {
                         .foregroundStyle(theme.color(.textSecondary))
                         .frame(width: 24, height: 24)
                         .background(theme.color(.surfaceInset))
-                        .overlay(Circle().stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue))
+                        .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -987,7 +987,7 @@ struct NotchOverlayView: View {
                 VStack(spacing: 0) {
                     Spacer().frame(height: 4)
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(theme.color(.frameGray))
+                        .fill(theme.color(.controlBorder))
                         .frame(width: 36, height: 4)
                     Spacer().frame(height: 8)
                 }
@@ -1059,7 +1059,7 @@ struct NotchOverlayView: View {
                                 if !preview.isEmpty {
                                     Text(preview)
                                         .font(.system(size: 11, weight: .regular))
-                                        .foregroundStyle(i == content.currentPageIndex ? theme.color(.readYellow).opacity(0.7) : theme.color(.textSecondary))
+                                        .foregroundStyle(i == content.currentPageIndex ? theme.color(.readYellow).opacity(0.85) : theme.color(.textSecondary))
                                         .lineLimit(1)
                                         .truncationMode(.tail)
                                 }
@@ -1074,7 +1074,7 @@ struct NotchOverlayView: View {
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 6)
-                                .stroke(i == content.currentPageIndex ? theme.color(.readYellow) : theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+                                .stroke(i == content.currentPageIndex ? theme.color(.readYellow) : theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
                         )
                     }
                     .buttonStyle(.plain)
@@ -1148,7 +1148,7 @@ struct NotchOverlayView: View {
                         .foregroundStyle(theme.color(.stateSuccess))
                     Text("DONE")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(theme.color(.hazardWhite))
+                        .foregroundStyle(theme.color(.textPrimary))
                 }
             }
             Spacer()
@@ -1294,7 +1294,7 @@ struct FloatingOverlayView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+                .stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
         )
         .opacity(appeared ? 1 : 0)
         .scaleEffect(reduceMotion ? 1 : (appeared ? 1 : 0.9))
@@ -1407,7 +1407,7 @@ struct FloatingOverlayView: View {
                                 .foregroundStyle(theme.color(.textSecondary))
                                 .frame(width: 24, height: 24)
                                 .background(theme.color(.surfaceInset))
-                                .overlay(Circle().stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue))
+                                .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -1426,7 +1426,7 @@ struct FloatingOverlayView: View {
                                 .foregroundStyle(theme.color(.textSecondary))
                                 .frame(width: 24, height: 24)
                                 .background(theme.color(.surfaceInset))
-                                .overlay(Circle().stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue))
+                                .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -1449,7 +1449,7 @@ struct FloatingOverlayView: View {
                                 .foregroundStyle(isPaused ? theme.color(.textSecondary) : theme.color(.readYellow))
                                 .frame(width: 24, height: 24)
                                 .background(theme.color(.surfaceInset))
-                                .overlay(Circle().stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue))
+                                .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -1466,7 +1466,7 @@ struct FloatingOverlayView: View {
                                 .foregroundStyle(speechRecognizer.isListening ? theme.color(.readYellow) : theme.color(.textSecondary))
                                 .frame(width: 24, height: 24)
                                 .background(theme.color(.surfaceInset))
-                                .overlay(Circle().stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue))
+                                .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -1481,7 +1481,7 @@ struct FloatingOverlayView: View {
                             .foregroundStyle(theme.color(.textSecondary))
                             .frame(width: 24, height: 24)
                             .background(theme.color(.surfaceInset))
-                            .overlay(Circle().stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue))
+                            .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
@@ -1546,7 +1546,7 @@ struct FloatingOverlayView: View {
                                 if !preview.isEmpty {
                                     Text(preview)
                                         .font(.system(size: 12, weight: .regular))
-                                        .foregroundStyle(i == content.currentPageIndex ? theme.color(.readYellow).opacity(0.7) : theme.color(.textSecondary))
+                                        .foregroundStyle(i == content.currentPageIndex ? theme.color(.readYellow).opacity(0.85) : theme.color(.textSecondary))
                                         .lineLimit(1)
                                         .truncationMode(.tail)
                                 }
@@ -1561,7 +1561,7 @@ struct FloatingOverlayView: View {
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(i == content.currentPageIndex ? theme.color(.readYellow) : theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+                                .stroke(i == content.currentPageIndex ? theme.color(.readYellow) : theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
                         )
                     }
                     .buttonStyle(.plain)
@@ -1608,7 +1608,7 @@ struct FloatingOverlayView: View {
                                 Text("Next Page")
                                     .font(.system(size: 14, weight: .bold))
                             }
-                            .foregroundStyle(theme.color(.absoluteBlack))
+                            .foregroundStyle(theme.onAccentForeground(for: .cueMint))
                             .padding(.horizontal, 20)
                             .padding(.vertical, 10)
                             .background(theme.color(.cueMint))
@@ -1624,7 +1624,7 @@ struct FloatingOverlayView: View {
                         .foregroundStyle(theme.color(.stateSuccess))
                     Text("DONE")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(theme.color(.hazardWhite))
+                        .foregroundStyle(theme.color(.textPrimary))
                 }
             }
             Spacer()
