@@ -379,8 +379,8 @@ Happy presenting! [wave]
                         RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
                             .stroke(
                                 hasSaveFailure
-                                    ? theme.color(.resyncViolet)
-                                    : (isTextFocused ? theme.color(.cueMint) : theme.color(.frameGray)),
+                                    ? theme.color(.resyncVioletText)
+                                    : (isTextFocused ? theme.color(.cueMint) : theme.color(.controlBorder)),
                                 lineWidth: (hasSaveFailure || isTextFocused) ? FCStrokeToken.medium.rawValue : FCStrokeToken.thin.rawValue
                             )
                     )
@@ -395,7 +395,7 @@ Happy presenting! [wave]
                         Text("SAVE FAILED. CHECK FILE ACCESS AND TRY AGAIN.")
                             .fcTypography(.labelCaps)
                     }
-                    .foregroundStyle(theme.color(.resyncViolet))
+                    .foregroundStyle(theme.color(.resyncVioletText))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -463,8 +463,8 @@ Happy presenting! [wave]
                         .fcTypography(.caption)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(theme.color(.teleprompterOrange))
-                .opacity(canMoveSelectedPage ? 1 : 0.4)
+                .foregroundStyle(theme.color(canMoveSelectedPage ? .teleprompterOrange : .textDisabled))
+                .disabled(!canMoveSelectedPage)
             } else {
                 Button {
                     guard canMoveSelectedPage else {
@@ -478,8 +478,8 @@ Happy presenting! [wave]
                         .fcTypography(.caption)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(theme.color(.cueMint))
-                .opacity(canMoveSelectedPage ? 1 : 0.4)
+                .foregroundStyle(theme.color(canMoveSelectedPage ? .cueMint : .textDisabled))
+                .disabled(!canMoveSelectedPage)
             }
         }
     }
@@ -499,9 +499,8 @@ Happy presenting! [wave]
                     .fcTypography(.caption)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(theme.color(.recordingPink))
+            .foregroundStyle(theme.color((service.canDeletePages && canDeleteSelectedPage) ? .dangerText : .textDisabled))
             .disabled(!service.canDeletePages || !canDeleteSelectedPage)
-            .opacity((service.canDeletePages && canDeleteSelectedPage) ? 1 : 0.4)
         }
     }
 
@@ -909,21 +908,21 @@ struct AboutView: View {
                     HStack(spacing: 5) {
                         Image(systemName: "heart.fill")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(theme.color(.recordingPink))
+                            .foregroundStyle(theme.color(.dangerText))
                         Text("Donate")
                             .font(.system(size: 12, weight: .medium))
                     }
-                    .foregroundStyle(theme.color(.recordingPink))
+                    .foregroundStyle(theme.color(.dangerText))
                     .padding(.horizontal, 14)
                     .padding(.vertical, 7)
                     .background(theme.color(.canvasBlack))
-                    .overlay(Capsule(style: .continuous).stroke(theme.color(.recordingPink), lineWidth: FCStrokeToken.thin.rawValue))
+                    .overlay(Capsule(style: .continuous).stroke(theme.color(.dangerText), lineWidth: FCStrokeToken.thin.rawValue))
                     .clipShape(Capsule())
                 }
             }
 
             Rectangle()
-                .fill(theme.color(.frameGray))
+                .fill(theme.color(.controlBorder))
                 .frame(height: 1)
                 .padding(.horizontal, 20)
 
@@ -940,7 +939,7 @@ struct AboutView: View {
                 dismiss()
             }
             .buttonStyle(.plain)
-            .foregroundStyle(theme.color(.absoluteBlack))
+            .foregroundStyle(theme.onAccentForeground(for: .cueMint))
             .fcTypography(.monoButton)
             .padding(.horizontal, FCSpacingToken.s20.rawValue)
             .padding(.vertical, FCSpacingToken.s8.rawValue)
@@ -953,7 +952,7 @@ struct AboutView: View {
         .background(theme.color(.surfaceSlate))
         .overlay(
             RoundedRectangle(cornerRadius: FCShapeToken.radius20.rawValue, style: .continuous)
-                .stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+                .stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
         )
     }
 }
