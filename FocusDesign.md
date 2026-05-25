@@ -11,20 +11,25 @@ colors:
   hazard-white: "#FFFFFF"
   absolute-black: "#000000"
   text-primary: "#FFFFFF"
-  text-secondary: "#949494"
+  text-secondary: "#B8B8B8"
+  text-tertiary: "#A7A7A7"
   text-muted: "#E9E9E9"
+  text-disabled: "#A7A7A7"
   text-inverted: "#131313"
+  control-border: "#7A7A7A"
   cue-mint: "#3CFFD0"
   cue-mint-border: "#309875"
   resync-violet: "#5200FF"
+  resync-violet-text: "#B498FF"
   violet-rule: "#3D00BF"
-  hover-blue: "#3860BE"
+  hover-blue: "#6F9DFF"
   focus-cyan: "#1EAEDB"
   read-yellow: "#FFD60A"
   recording-pink: "#FF6191"
   teleprompter-orange: "#FF9E0A"
   success-green: "#22C55E"
   warning-amber: "#FACC15"
+  danger-text: "#FF5F8F"
   error-violet: "#5200FF"
   disabled-gray: "#5A5A5A"
   divider-white: "#FFFFFF"
@@ -143,7 +148,7 @@ components:
   window-shell:
     background: "{colors.canvas-black}"
     foreground: "{colors.text-primary}"
-    border: "1px solid {colors.frame-gray}"
+    border: "1px solid {colors.control-border}"
     radius: "{rounded.lg}"
     padding: "{spacing.md}"
   panel:
@@ -160,19 +165,19 @@ components:
     padding: "{spacing.xxl}"
   primary-button:
     background: "{colors.cue-mint}"
-    foreground: "{colors.absolute-black}"
+    foreground: "{colors.text-inverted}"
     border: "none"
     radius: "{rounded.lg}"
     padding: "10px 24px"
     typography: "{typography.mono-button}"
-    hover: "background {colors.hover-blue}; foreground {colors.hazard-white}"
-    active: "background {colors.disabled-gray}; opacity 0.65"
-    focus: "background {colors.focus-cyan}; border 1px solid {colors.resync-violet}"
-    disabled: "background {colors.disabled-gray}; foreground {colors.text-secondary}; opacity 0.55"
+    hover: "background {colors.hover-blue}; foreground {colors.text-inverted}"
+    active: "background {colors.cue-mint-border}; foreground {colors.text-inverted}"
+    focus: "background {colors.focus-cyan}; border 1px solid {colors.control-border}"
+    disabled: "background {colors.surface-inset}; foreground {colors.text-disabled}; border 1px solid {colors.control-border}"
   secondary-button:
     background: "{colors.surface-slate}"
     foreground: "{colors.text-muted}"
-    border: "1px solid {colors.frame-gray}"
+    border: "1px solid {colors.control-border}"
     radius: "{rounded.lg}"
     padding: "10px 24px"
     typography: "{typography.body-compact}"
@@ -185,7 +190,7 @@ components:
     radius: "{rounded.xxl}"
     padding: "10px 20px"
     typography: "{typography.mono-button}"
-    hover: "background {colors.cue-mint}; foreground {colors.absolute-black}"
+    hover: "background {colors.cue-mint}; foreground {colors.text-inverted}"
   timeline-row:
     background: "{colors.canvas-black}"
     foreground: "{colors.text-primary}"
@@ -199,16 +204,16 @@ components:
   script-editor:
     background: "{colors.surface-inset}"
     foreground: "{colors.text-primary}"
-    border: "1px solid {colors.frame-gray}"
+    border: "1px solid {colors.control-border}"
     radius: "{rounded.md}"
     padding: "{spacing.xl}"
     typography: "{typography.body}"
     focus: "border 1px solid {colors.cue-mint}"
-    error: "border 1px solid {colors.error-violet}"
+    error: "border 1px solid {colors.resync-violet-text}"
   chip:
     background: "{colors.surface-slate}"
     foreground: "{colors.text-muted}"
-    border: "1px solid {colors.frame-gray}"
+    border: "1px solid {colors.control-border}"
     radius: "{rounded.full}"
     padding: "4px 10px"
     typography: "{typography.label-caps}"
@@ -216,25 +221,25 @@ components:
     background: "{colors.canvas-black}"
     foreground: "{colors.text-primary}"
     placeholder: "{colors.text-secondary}"
-    border: "1px solid {colors.text-secondary}"
+    border: "1px solid {colors.control-border}"
     radius: "{rounded.xs}"
     padding: "8px 10px"
     typography: "{typography.body-compact}"
     focus: "border 1px solid {colors.cue-mint}"
-    error: "border 1px solid {colors.error-violet}"
+    error: "border 1px solid {colors.danger-text}"
   mode-segment:
     background: "{colors.canvas-black}"
     foreground: "{colors.text-secondary}"
-    border: "1px solid {colors.frame-gray}"
+    border: "1px solid {colors.control-border}"
     radius: "{rounded.full}"
     padding: "8px 12px"
     typography: "{typography.label-caps}"
-    selected: "background {colors.cue-mint}; foreground {colors.absolute-black}"
-    locked: "foreground {colors.disabled-gray}; border 1px solid {colors.disabled-gray}"
+    selected: "background {colors.cue-mint}; foreground {colors.text-inverted}"
+    locked: "foreground {colors.text-disabled}; border 1px solid {colors.control-border}"
   overlay-readout:
     background: "{colors.absolute-black}"
     foreground: "{colors.text-primary}"
-    border: "1px solid {colors.frame-gray}"
+    border: "1px solid {colors.control-border}"
     radius: "{rounded.overlay}"
     padding: "{spacing.md}"
     typography: "{typography.script-lg}"
@@ -272,19 +277,26 @@ The palette is built from a near-black canvas, white text, slate panels, and a s
 - **Canvas Black (`#131313`):** The default app background and the baseline for overlay surfaces.
 - **Surface Slate (`#2D2D2D`):** Secondary panels, inactive grouped controls, and settings cards.
 - **Surface Inset (`#0F0F0F`):** Script editor wells, remote output canvas, and embedded readout zones.
-- **Frame Gray (`#313131`):** Image frames, panel separators, and quiet borders.
+- **Frame Gray (`#313131`):** Panel separators and quiet non-state dividers.
+- **Control Border (`#7A7A7A`):** Inactive control frames, visible borders, waveform idle marks, and other non-text state edges.
 - **Hazard White (`#FFFFFF`):** Primary text and high-attention borders on dark surfaces.
+- **Text Secondary (`#B8B8B8`):** Helper copy, secondary labels, spoken-text telemetry, and captions.
+- **Text Tertiary / Disabled (`#A7A7A7`):** Metadata, locked labels, disabled labels, and low-priority text that still needs AA contrast.
 - **Cue Mint (`#3CFFD0`):** The ready, start, synced, active, selected, and primary-action accent.
 - **Cue Mint Border (`#309875`):** The restrained mint used when pure mint would vibrate.
-- **Resync Violet (`#5200FF`):** Smart resync, AI-assisted recovery, alert, and interruption color.
+- **Resync Violet (`#5200FF`):** Dark filled Smart Resync and AI-assisted recovery controls.
+- **Resync Violet Text (`#B498FF`):** Smart Resync labels, outlines, and save-failed markers on dark surfaces.
 - **Violet Rule (`#3D00BF`):** Timeline rail and structural rule accent.
-- **Hover Blue (`#3860BE`):** Universal hover color for link-like text.
+- **Hover Blue (`#6F9DFF`):** Universal hover color for link-like text.
 - **Focus Cyan (`#1EAEDB`):** Keyboard focus only. Do not use it as decoration.
 - **Read Yellow (`#FFD60A`):** Active read progress and current-word highlighting when a warmer cue is needed.
 - **Recording Pink (`#FF6191`):** Recording, microphone capture, and stop/urgent delivery controls.
 - **Teleprompter Orange (`#FF9E0A`):** Output routing, external display, mirror rig, and import states.
+- **Danger Text (`#FF5F8F`):** Destructive text, denied permission labels, and urgent outlines on dark surfaces.
 
 Use accent fills sparingly. A mint fill means "this is ready or primary." A violet fill means "this is exceptional, assisted, or needs attention." Yellow, pink, and orange must stay tied to live reading, recording, and output workflows.
+
+Normal text, helper text, disabled text, and metadata must meet at least 4.5:1 contrast on `surface-slate`, `surface-raised`, `surface-inset`, and `canvas-black`. Filled accent controls must use the tokenized foreground policy: dark text on mint, pink, orange, yellow, readable blue, and readable purple fills; white text only on dark violet fills. Dimmed delivery words should not drop below roughly 55% visibility, and annotations should not drop below roughly 45%.
 
 Do not create gradients, glows, tinted blobs, or soft background washes from these colors. A colored panel should be a deliberate block. A colored border should be a deliberate rule.
 
@@ -334,11 +346,11 @@ Elevation levels:
 | Level | Treatment | Use |
 |---|---|---|
 | 0 | `canvas-black`, no border | Root app canvas, fullscreen teleprompter |
-| 1 | `surface-inset` with `frame-gray` border | Script editor, browser remote canvas, text wells |
-| 2 | `surface-slate` with `frame-gray` border | Settings cards, secondary panels, inactive controls |
+| 1 | `surface-inset` with `control-border` border | Script editor, browser remote canvas, text wells |
+| 2 | `surface-slate` with `control-border` border | Settings cards, secondary panels, inactive controls |
 | 3 | `canvas-black` with `hazard-white` border | Timeline rows, primary dark panels |
 | 4 | `cue-mint` border or fill | Ready, selected, synced, primary action |
-| 5 | `resync-violet` border or fill | Smart resync, alert, AI-assisted recovery |
+| 5 | `resync-violet-text` border or `resync-violet` fill | Smart resync, alert, AI-assisted recovery |
 | 6 | `recording-pink`, `read-yellow`, or `teleprompter-orange` fill | Live recording, current progress, external output |
 
 Avoid drop shadows as hierarchy. A shadow may be used only as a platform escape hatch for a detached floating panel that would otherwise disappear against arbitrary desktop content. Even then, keep it subtle and secondary to the 1px frame.
@@ -375,7 +387,7 @@ The page rail should read as a sequence:
 - Use a vertical `violet-rule` rail or left border for live page groups.
 - Page numbers, module names, counts, save markers, and lock labels use uppercase mono.
 - Selected page uses a `cue-mint` border or inset underline.
-- Dirty page uses `warning-amber`; save-failed uses `resync-violet`.
+- Dirty page uses `warning-amber`; save-failed uses `resync-violet-text`.
 - Read pages use a solid `success-green` dot or check.
 - Locked pages use muted text and a clear lock marker, not reduced opacity alone.
 
@@ -387,20 +399,20 @@ The script editor is the quietest surface in the app. It should feel stable enou
 
 - Background: `surface-inset` or `canvas-black`.
 - Text: `text-primary`, with selection/read overlays using functional accents.
-- Border: `frame-gray` at rest, `cue-mint` when focused.
-- Save-failed state: `resync-violet` border plus concise helper text.
+- Border: `control-border` at rest, `cue-mint` when focused.
+- Save-failed state: `resync-violet-text` border plus concise helper text.
 - Empty state: a muted prompt with one mint outline action.
 
 Do not put the editor inside nested cards. The editor itself is the surface.
 
 ### Action Bar and Run Controls
 
-The primary run button is a mint pill with black uppercase mono text. It should be the strongest control on the authoring screen.
+The primary run button is a mint pill with readable dark uppercase mono text. It should be the strongest control on the authoring screen.
 
-- Ready to start: `cue-mint` fill, `absolute-black` text.
+- Ready to start: `cue-mint` fill, `text-inverted` text.
 - Running or stop: `recording-pink` fill or border, direct stop label.
 - Output-related actions: `teleprompter-orange`.
-- Smart draft or resync actions: `resync-violet`.
+- Smart draft or resync actions: `resync-violet` fill with white text or `resync-violet-text` outline/text.
 - Secondary actions: dark slate pills or outlined icon tiles.
 
 Do not use gradients or glow shadows for run controls. State is communicated through fill, border, label, and icon.
@@ -424,7 +436,7 @@ The pinned overlay stays black and minimal. It should preserve the feeling of th
 - Script: `script-lg`, user-adjustable by settings.
 - Current word or read progress: `read-yellow`, `cue-mint`, or the selected prompter color.
 - Last spoken text: muted, compact, and visually secondary.
-- Waveform: low-contrast bars that brighten with live input.
+- Waveform: readable idle bars that brighten with live input.
 - Timer/counter: uppercase mono.
 
 Page picker, done state, and auto-next countdown should use the same flat border/fill language.
@@ -464,8 +476,8 @@ Avoid celebratory visual noise. Onboarding should make setup feel controlled.
 Settings are an operator panel. Use dense rows, strong tab rails, clear labels, and explicit state badges.
 
 - Tab rail selected state uses `cue-mint` underline or border.
-- Section cards use `surface-slate` and 1px `frame-gray`.
-- Destructive or risky settings use violet or pink bordered notices.
+- Section cards use `surface-slate` and 1px `control-border`.
+- Destructive or risky settings use `danger-text` or `resync-violet-text` bordered notices.
 - API key fields use the input token and never expose key material in decorative previews.
 - Remote browser port and output routing should use mono counters and status badges.
 
@@ -480,7 +492,7 @@ Avoid pulsing glows. If motion is used, animate border opacity only. File type l
 ### Empty, Error, Permission, Locked, and Done States
 
 - **Empty:** muted text, one primary action, optional mono hint.
-- **Error:** violet border, concise cause, explicit retry or settings action.
+- **Error:** readable violet or danger border, concise cause, explicit retry or settings action.
 - **Permission denied:** serious notice with direct system-settings action.
 - **Locked:** visible lock marker, muted row, upgrade or explanation action only when useful.
 - **Done:** solid success marker, short label, no confetti or decorative burst.
@@ -497,7 +509,7 @@ States must include enough text to recover without making the screen feel like d
 - Do use uppercase mono for timestamps, counters, mode labels, badges, compact buttons, and page metadata.
 - Do keep script text large, high contrast, and visually dominant during delivery.
 - Do use `cue-mint` for ready, active, synced, selected, and start states.
-- Do use `resync-violet` for smart resync, alert, AI-assisted recovery, and exceptional error states.
+- Do use `resync-violet` for dark filled smart-resync controls and `resync-violet-text` for readable violet labels or outlines.
 - Do use `hover-blue` for link-like hover text.
 - Do keep browser remote and external display surfaces minimal.
 - Do respect Reduce Motion with opacity, border, and color changes instead of movement.
