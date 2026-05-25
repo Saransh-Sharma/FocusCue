@@ -27,25 +27,7 @@ struct DraftSessionView: View {
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
 
         VStack(spacing: 0) {
-            HStack {
-                Text(headerTitle)
-                    .foregroundStyle(theme.color(.textPrimary))
-                    .fcTypography(.heading)
-                Spacer()
-                if phase == .recording {
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(theme.color(.recordingPink))
-                            .frame(width: 8, height: 8)
-                        Text("RECORDING")
-                            .fcTypography(.monoTimestamp)
-                            .foregroundStyle(theme.color(.recordingPink))
-                    }
-                }
-            }
-            .padding(.horizontal, FCSpacingToken.s16.rawValue)
-            .padding(.top, FCSpacingToken.s16.rawValue)
-            .padding(.bottom, FCSpacingToken.s12.rawValue)
+            headerView(theme: theme)
 
             Rectangle()
                 .fill(theme.color(.controlBorder))
@@ -100,6 +82,29 @@ struct DraftSessionView: View {
         }
     }
 
+    @ViewBuilder
+    private func headerView(theme: FCTheme) -> some View {
+        HStack {
+            Text(headerTitle)
+                .foregroundStyle(theme.color(.textPrimary))
+                .fcTypography(.heading)
+            Spacer()
+            if phase == .recording {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(theme.color(.recordingPink))
+                        .frame(width: 8, height: 8)
+                    Text("RECORDING")
+                        .fcTypography(.monoTimestamp)
+                        .foregroundStyle(theme.color(.recordingPink))
+                }
+            }
+        }
+        .padding(.horizontal, FCSpacingToken.s16.rawValue)
+        .padding(.top, FCSpacingToken.s16.rawValue)
+        .padding(.bottom, FCSpacingToken.s12.rawValue)
+    }
+
     private var reviewSubtitle: String {
         if DistributionFeatures.aiDraftRefinementVisible {
             return "Edit your transcript, then use it directly or refine it into a cleaner script."
@@ -120,7 +125,7 @@ struct DraftSessionView: View {
                         .id("transcript")
                 }
                 .onChange(of: draftService.rawTranscript) { _, _ in
-                    withAnimation {
+                    withAnimation(theme.animation(.base)) {
                         proxy.scrollTo("transcript", anchor: .bottom)
                     }
                 }
@@ -135,7 +140,7 @@ struct DraftSessionView: View {
                 }
             }
             .frame(height: 28)
-            .animation(.easeOut(duration: 0.1), value: draftService.audioLevels)
+            .animation(theme.animation(.fast), value: draftService.audioLevels)
             .padding(.horizontal, FCSpacingToken.s16.rawValue)
             .padding(.bottom, FCSpacingToken.s8.rawValue)
         }
