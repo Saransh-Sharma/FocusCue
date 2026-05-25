@@ -300,7 +300,7 @@ struct OnboardingWizardView: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule(style: .continuous)
-                        .fill(theme.color(.frameGray))
+                        .fill(theme.color(.controlBorder))
 
                     Capsule(style: .continuous)
                         .fill(
@@ -519,7 +519,7 @@ struct OnboardingWizardView: View {
         let statusColor: FCColorToken = {
             switch currentStatus {
             case .authorized: return .stateSuccess
-            case .denied: return .stateError
+            case .denied: return .dangerText
             case .restricted: return .stateWarning
             case .notDetermined: return .textTertiary
             }
@@ -644,7 +644,7 @@ struct OnboardingWizardView: View {
     ) -> some View {
         Button(action: action) {
             Text(title)
-                .foregroundStyle(accent == .cueMint ? theme.color(.absoluteBlack) : theme.color(.hazardWhite))
+                .foregroundStyle(theme.onAccentForeground(for: accent))
                 .fcTypography(.monoButton)
                 .textCase(.uppercase)
                 .frame(maxWidth: .infinity)
@@ -722,7 +722,7 @@ struct OnboardingWizardView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
                     .stroke(
-                        isSelected ? theme.color(accent) : theme.color(.frameGray),
+                        isSelected ? theme.color(accent) : theme.color(.controlBorder),
                         lineWidth: isSelected ? FCStrokeToken.medium.rawValue : FCStrokeToken.thin.rawValue
                     )
             )
@@ -749,7 +749,7 @@ struct OnboardingWizardView: View {
         )
         .overlay(
             Capsule(style: .continuous)
-                .stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+                .stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
         )
     }
 
@@ -785,7 +785,7 @@ struct OnboardingWizardView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                .stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+                .stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
         )
     }
 

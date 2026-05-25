@@ -283,7 +283,7 @@ struct ExternalDisplayView: View {
                                 .foregroundStyle(speechRecognizer.isListening ? theme.color(.readYellow) : theme.color(.textSecondary))
                                 .frame(width: 40, height: 40)
                                 .background(theme.color(.surfaceInset))
-                                .overlay(Circle().stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue))
+                                .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -307,7 +307,7 @@ struct ExternalDisplayView: View {
                         Text("Next Page")
                             .font(.system(size: 28, weight: .bold))
                     }
-                    .foregroundStyle(theme.color(.absoluteBlack))
+                    .foregroundStyle(theme.onAccentForeground(for: .cueMint))
                     .padding(.horizontal, 32)
                     .padding(.vertical, 16)
                     .background(theme.color(.cueMint))
@@ -321,7 +321,7 @@ struct ExternalDisplayView: View {
                     .foregroundStyle(theme.color(.stateSuccess))
                 Text("DONE")
                     .font(.system(size: 32, weight: .bold))
-                    .foregroundStyle(theme.color(.hazardWhite))
+                    .foregroundStyle(theme.color(.textPrimary))
             }
         }
         .transition(.opacity)
