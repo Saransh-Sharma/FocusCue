@@ -69,8 +69,7 @@ struct FCWindowHeader: View {
             HStack(spacing: FCSpacingToken.s12.rawValue) {
                 FCBrandIconView(
                     size: 42,
-                    cornerRadius: FCShapeToken.radius14.rawValue,
-                    shadowRadius: 0
+                    cornerRadius: FCShapeToken.radius14.rawValue
                 )
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -101,7 +100,6 @@ struct FCPageRail: View {
     let archivePages: [SidebarPageRowModel]
     let canAddPages: Bool
     let canDeletePages: Bool
-    let selectedModule: PageModule?
     let onSelectPage: (UUID) -> Void
     let onSelectLockedPage: (UUID) -> Void
     let onRenamePage: (UUID, String) -> Void
@@ -676,7 +674,7 @@ private struct FCActionTile: View {
         .buttonStyle(.plain)
         .disabled(!enabled)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(theme.animation(.fast)) {
                 isHovered = hovering
             }
         }
