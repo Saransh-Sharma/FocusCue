@@ -49,7 +49,7 @@ struct FCGlassPanel<Content: View>: View {
         .clipShape(panelShape)
         .overlay(
             panelShape
-                .stroke(theme.color(emphasized ? .hazardWhite : .frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+                .stroke(theme.color(emphasized ? .hazardWhite : .controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
         )
     }
 }
@@ -175,7 +175,7 @@ struct FCPageRail: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, FCSpacingToken.s12.rawValue)
             .padding(.vertical, FCSpacingToken.s8.rawValue)
-            .foregroundStyle(theme.color(.cueMint))
+            .foregroundStyle(theme.color(canAddPages ? .cueMint : .textDisabled))
             .background(
                 RoundedRectangle(cornerRadius: FCShapeToken.radius24.rawValue, style: .continuous)
                     .fill(theme.color(.canvasBlack))
@@ -183,7 +183,7 @@ struct FCPageRail: View {
             .overlay(
                 RoundedRectangle(cornerRadius: FCShapeToken.radius24.rawValue, style: .continuous)
                     .stroke(
-                        theme.color(canAddPages ? .cueMint : .disabledGray),
+                        theme.color(canAddPages ? .cueMint : .controlBorder),
                         lineWidth: FCStrokeToken.thin.rawValue
                     )
             )
@@ -333,7 +333,7 @@ private struct FCSidebarPageRow: View {
                         Text("\(row.localIndex). \(row.baseTitle)")
                             .foregroundStyle(
                                 row.isLocked
-                                ? theme.color(.textTertiary)
+                                ? theme.color(.textDisabled)
                                 : (isHovered ? theme.color(.hoverBlue) : (row.isSelected ? theme.color(.textPrimary) : theme.color(.textSecondary)))
                             )
                             .lineLimit(1)
@@ -346,7 +346,7 @@ private struct FCSidebarPageRow: View {
                         if row.isLocked {
                             Image(systemName: "lock.fill")
                                 .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(theme.color(.textTertiary))
+                                .foregroundStyle(theme.color(.textDisabled))
                         } else if row.needsSave || row.saveFailed {
                             Circle()
                                 .fill(theme.color(.stateWarning))
@@ -377,7 +377,7 @@ private struct FCSidebarPageRow: View {
 
             if !row.preview.isEmpty {
                 Text(row.preview)
-                    .foregroundStyle(row.isLocked ? theme.color(.textTertiary).opacity(0.8) : theme.color(.textTertiary))
+                    .foregroundStyle(row.isLocked ? theme.color(.textDisabled) : theme.color(.textTertiary))
                     .lineLimit(1)
                     .fcTypography(.caption)
             }
@@ -393,8 +393,8 @@ private struct FCSidebarPageRow: View {
             RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
                 .stroke(
                     row.saveFailed
-                        ? theme.color(.resyncViolet)
-                        : (row.isSelected ? theme.color(.cueMint) : (shouldFrame ? theme.color(.frameGray) : .clear)),
+                        ? theme.color(.resyncVioletText)
+                        : (row.isSelected ? theme.color(.cueMint) : (shouldFrame ? theme.color(.controlBorder) : .clear)),
                     lineWidth: row.isSelected || row.saveFailed ? FCStrokeToken.medium.rawValue : FCStrokeToken.thin.rawValue
                 )
         )
@@ -500,6 +500,7 @@ struct FCActionBar: View {
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
         let accentToken: FCColorToken = isRunning ? .recordingPink : .cueMint
         let accent = theme.color(accentToken)
+        let isStartEnabled = isRunning || canStart
 
         FCGlassPanel {
             VStack(spacing: FCSpacingToken.s16.rawValue) {
@@ -512,20 +513,22 @@ struct FCActionBar: View {
                         Text(isRunning ? "STOP SEQUENCE" : "START LIVE SEQUENCE")
                             .fcTypography(.monoButton)
                     }
-                    .foregroundStyle(isRunning ? theme.color(.hazardWhite) : theme.color(.absoluteBlack))
+                    .foregroundStyle(isStartEnabled ? theme.onAccentForeground(for: accentToken) : theme.color(.textDisabled))
                     .frame(maxWidth: .infinity, minHeight: 52)
                     .background(
                         Capsule(style: .continuous)
-                            .fill(accent.opacity(isStartHovered ? 0.92 : 1.0))
+                            .fill(isStartEnabled ? accent.opacity(isStartHovered ? 0.92 : 1.0) : theme.color(.surfaceInset))
                     )
                     .overlay(
                         Capsule(style: .continuous)
-                            .stroke(theme.color(isRunning ? .recordingPink : .cueMintBorder), lineWidth: FCStrokeToken.thin.rawValue)
+                            .stroke(
+                                isStartEnabled ? theme.color(isRunning ? .recordingPink : .cueMintBorder) : theme.color(.controlBorder),
+                                lineWidth: FCStrokeToken.thin.rawValue
+                            )
                     )
                 }
                 .buttonStyle(.plain)
-                .disabled(!(isRunning || canStart))
-                .opacity((isRunning || canStart) ? 1 : 0.45)
+                .disabled(!isStartEnabled)
                 .animation(theme.animation(.fast), value: isStartHovered)
                 .onHover { isStartHovered = $0 }
                 .help(helperText)
@@ -589,14 +592,14 @@ struct FCActionBar: View {
                     .padding(.vertical, FCSpacingToken.s8.rawValue)
                     .foregroundStyle(
                         isSelected
-                        ? theme.color(.absoluteBlack)
-                        : theme.color(isLocked ? .disabledGray : .textSecondary)
+                        ? theme.onAccentForeground(for: isLocked ? .controlBorder : .cueMint)
+                        : theme.color(isLocked ? .textDisabled : .textSecondary)
                     )
                     .background(
                         RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
                             .fill(
                                 isSelected
-                                ? theme.color(isLocked ? .disabledGray : .cueMint)
+                                ? theme.color(isLocked ? .controlBorder : .cueMint)
                                 : .clear
                             )
                     )
@@ -611,7 +614,7 @@ struct FCActionBar: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: FCShapeToken.radius14.rawValue, style: .continuous)
-                .stroke(theme.color(.frameGray), lineWidth: FCStrokeToken.thin.rawValue)
+                .stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
         )
     }
 }
@@ -630,16 +633,17 @@ private struct FCActionTile: View {
 
     var body: some View {
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+        let accentToken = enabled ? (accent == .resyncViolet ? FCColorToken.resyncVioletText : accent) : .textDisabled
 
         Button(action: action) {
             VStack(spacing: FCSpacingToken.s4.rawValue) {
                 Image(systemName: icon)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(theme.color(accent))
+                    .foregroundStyle(theme.color(accentToken))
                 Text(title)
                     .fcTypography(.monoButton)
                     .textCase(.uppercase)
-                    .foregroundStyle(theme.color(accent))
+                    .foregroundStyle(theme.color(accentToken))
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, minHeight: 54)
@@ -649,18 +653,21 @@ private struct FCActionTile: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                    .stroke(theme.color(accent).opacity(isHovered ? 1 : 0.58), lineWidth: FCStrokeToken.thin.rawValue)
+                    .stroke(
+                        enabled ? theme.color(accentToken).opacity(isHovered ? 1 : 0.72) : theme.color(.controlBorder),
+                        lineWidth: FCStrokeToken.thin.rawValue
+                    )
             )
             .overlay(alignment: .topTrailing) {
                 if let badge {
                     Text(badge)
                         .fcTypography(.caption)
-                        .foregroundStyle(theme.color(accent))
+                        .foregroundStyle(theme.color(accentToken))
                         .padding(.horizontal, FCSpacingToken.s4.rawValue)
                         .padding(.vertical, 2)
                         .background(
                             Capsule(style: .continuous)
-                                .fill(theme.color(accent).opacity(0.14))
+                                .fill(theme.color(accentToken).opacity(0.14))
                         )
                         .padding(6)
                 }
@@ -668,7 +675,6 @@ private struct FCActionTile: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.45)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovered = hovering
@@ -690,6 +696,7 @@ struct FCRunDock: View {
     var body: some View {
         let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
         let tint = isRunning ? theme.color(.recordingPink) : theme.color(.cueMint)
+        let accentToken: FCColorToken = isRunning ? .recordingPink : .cueMint
 
         Button(action: action) {
             HStack(spacing: FCSpacingToken.s8.rawValue) {
@@ -698,21 +705,20 @@ struct FCRunDock: View {
                 Text(isRunning ? "Stop" : "Start")
                     .fcTypography(.label)
             }
-            .foregroundStyle(isRunning ? theme.color(.hazardWhite) : theme.color(.absoluteBlack))
+            .foregroundStyle(isEnabled ? theme.onAccentForeground(for: accentToken) : theme.color(.textDisabled))
             .padding(.horizontal, FCSpacingToken.s20.rawValue)
             .padding(.vertical, FCSpacingToken.s12.rawValue)
             .background(
                 Capsule(style: .continuous)
-                    .fill(tint)
+                    .fill(isEnabled ? tint : theme.color(.surfaceInset))
             )
             .overlay(
                 Capsule(style: .continuous)
-                    .stroke(theme.color(isRunning ? .recordingPink : .cueMintBorder), lineWidth: FCStrokeToken.thin.rawValue)
+                    .stroke(isEnabled ? theme.color(isRunning ? .recordingPink : .cueMintBorder) : theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
             )
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.45)
         .animation(theme.spring(.snappy), value: isRunning)
         .animation(theme.animation(.fast), value: isHovered)
         .onHover { hovering in
