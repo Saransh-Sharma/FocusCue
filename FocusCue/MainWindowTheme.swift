@@ -26,6 +26,10 @@ enum FCColorToken: CaseIterable {
     case recordingPink
     case teleprompterOrange
     case disabledGray
+    case textDisabled
+    case controlBorder
+    case resyncVioletText
+    case dangerText
     case bgCanvas
     case bgCanvasTop
     case bgCanvasBottom
@@ -55,11 +59,11 @@ enum FCColorToken: CaseIterable {
         case .absoluteBlack:
             return .fcHex(0x000000)
         case .textSecondary:
-            return .fcHex(0x949494)
+            return .fcHex(0xB8B8B8)
         case .textMuted:
             return .fcHex(0xE9E9E9)
         case .textTertiary:
-            return .fcHex(0x949494).opacity(0.72)
+            return .fcHex(0xA7A7A7)
         case .textInverted:
             return .fcHex(0x131313)
         case .cueMint, .accentPrimary:
@@ -71,7 +75,7 @@ enum FCColorToken: CaseIterable {
         case .violetRule:
             return .fcHex(0x3D00BF)
         case .hoverBlue:
-            return .fcHex(0x3860BE)
+            return .fcHex(0x6F9DFF)
         case .focusCyan, .borderFocus:
             return .fcHex(0x1EAEDB)
         case .readYellow:
@@ -86,6 +90,14 @@ enum FCColorToken: CaseIterable {
             return .fcHex(0xFACC15)
         case .disabledGray:
             return .fcHex(0x5A5A5A)
+        case .textDisabled:
+            return .fcHex(0xA7A7A7)
+        case .controlBorder:
+            return .fcHex(0x7A7A7A)
+        case .resyncVioletText:
+            return .fcHex(0xB498FF)
+        case .dangerText:
+            return .fcHex(0xFF5F8F)
         }
     }
 }
@@ -336,6 +348,19 @@ struct FCTheme {
 
     func color(_ token: FCColorToken) -> Color {
         token.color(in: colorScheme)
+    }
+
+    func onAccentForeground(for token: FCColorToken) -> Color {
+        switch token {
+        case .resyncViolet, .violetRule, .stateError:
+            return color(.hazardWhite)
+        case .cueMint, .cueMintBorder, .accentPrimary, .focusCyan, .borderFocus,
+             .readYellow, .recordingPink, .teleprompterOrange, .stateSuccess,
+             .stateWarning, .hoverBlue, .resyncVioletText, .dangerText:
+            return color(.textInverted)
+        default:
+            return color(.textPrimary)
+        }
     }
 
     func material(_ token: FCMaterialToken) -> Material {
