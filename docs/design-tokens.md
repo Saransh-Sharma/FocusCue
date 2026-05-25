@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This file documents the tokenized presentation layer used by FocusCue's macOS app surfaces. The visual source of truth is `/Users/saransh1337/Developer/Projects/FocusCue/FocusDesign.md`; the code source of truth is `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/MainWindowTheme.swift`.
+This file documents the tokenized presentation layer used by FocusCue's macOS app surfaces. The visual source of truth is `FocusDesign.md`; the code source of truth is `FocusCue/MainWindowTheme.swift`.
 
 The system is dark-first and production-console oriented. New UI should use `FCTheme`, `FCColorToken`, `FCTypographyToken`, `FCSpacingToken`, and `FCShapeToken` instead of ad hoc visual constants.
 
@@ -35,7 +35,6 @@ The system is dark-first and production-console oriented. New UI should use `FCT
 | `stateSuccess` | `#22C55E` | Read/done/success markers |
 | `stateWarning` | `#FACC15` | Dirty or incomplete states |
 | `dangerText` | `#FF5F8F` | Destructive text, warning outlines, denied permission text |
-| `disabledGray` | `#5A5A5A` | Locked and unavailable controls |
 
 The only retained compatibility aliases are `accentPrimary`, `borderFocus`, and legacy background canvas names used by older preview/debug code. Production UI should use explicit FocusDesign token names.
 
