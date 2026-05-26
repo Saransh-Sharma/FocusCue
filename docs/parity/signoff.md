@@ -4,7 +4,7 @@
 PASS (source-level parity port complete with phase-by-phase audit artifacts)
 
 ## Completed gates
-- Phase 1 through Phase 8 audit reports present in `/Users/saransh1337/Developer/Projects/FocusCue/docs/audits/`.
+- Phase 1 through Phase 8 audit reports present in `docs/audits/`.
 - Debug build succeeds with root-level FocusCue project and scheme.
 - Direct-distribution `FocusCue Direct Debug` and `FocusCue Direct Release` schemes are present for non-App-Store validation and packaging.
 - Core feature modules are ported and integrated.

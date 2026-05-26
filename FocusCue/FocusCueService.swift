@@ -29,6 +29,7 @@ struct SaveAllResult: Equatable {
     let failedPageIDs: [UUID]
 }
 
+@MainActor
 @Observable
 class FocusCueService: NSObject {
     static let shared = FocusCueService()

@@ -4,22 +4,22 @@
 Main UI, settings UI, lifecycle, import, update flows.
 
 ## 2. FocusCue files implemented
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/ContentView.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/SettingsView.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/DraftSessionView.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/ScriptDraftService.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/PresentationNotesExtractor.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/UpdateChecker.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/FocusCueApp.swift`
+- `FocusCue/ContentView.swift`
+- `FocusCue/SettingsView.swift`
+- `FocusCue/DraftSessionView.swift`
+- `FocusCue/ScriptDraftService.swift`
+- `FocusCue/PresentationNotesExtractor.swift`
+- `FocusCue/UpdateChecker.swift`
+- `FocusCue/FocusCueApp.swift`
 
 ## 3. Reference files compared
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/ContentView.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/SettingsView.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/DraftSessionView.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/ScriptDraftService.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/PresentationNotesExtractor.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/UpdateChecker.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/AutoPrompterApp.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/ContentView.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/SettingsView.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/DraftSessionView.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/ScriptDraftService.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/PresentationNotesExtractor.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/UpdateChecker.swift`
+- `autoprompter-main/AutoPrompter/AutoPrompter/AutoPrompterApp.swift`
 
 ## 4. Symbol parity check
 - Main views and tabs retained.

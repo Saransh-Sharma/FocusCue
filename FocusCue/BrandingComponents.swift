@@ -3,15 +3,13 @@ import SwiftUI
 struct FCBrandIconView: View {
     let size: CGFloat
     let cornerRadius: CGFloat
-    let shadowRadius: CGFloat
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(size: CGFloat, cornerRadius: CGFloat, shadowRadius: CGFloat = 0) {
+    init(size: CGFloat, cornerRadius: CGFloat) {
         self.size = size
         self.cornerRadius = cornerRadius
-        self.shadowRadius = shadowRadius
     }
 
     private var brandImage: NSImage? {
@@ -29,15 +27,18 @@ struct FCBrandIconView: View {
                     .interpolation(.high)
             } else {
                 shape
-                    .fill(theme.color(.surfaceGlassStrong))
+                    .fill(theme.color(.surfaceRaised))
+                    .overlay(
+                        Text("FC")
+                            .foregroundStyle(theme.color(.cueMint))
+                            .fcTypography(.labelCaps)
+                    )
             }
         }
         .frame(width: size, height: size)
         .clipShape(shape)
-        .shadow(
-            color: shadowRadius > 0 ? theme.color(.accentInfo).opacity(0.18) : .clear,
-            radius: shadowRadius,
-            y: shadowRadius > 0 ? 2 : 0
+        .overlay(
+            shape.stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
         )
     }
 }

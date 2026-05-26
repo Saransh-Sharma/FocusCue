@@ -108,6 +108,8 @@ struct ExternalDisplayView: View {
     @Bindable var content: OverlayContent
     @Bindable var speechRecognizer: SpeechRecognizer
     let mirrorAxis: MirrorAxis?
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var words: [String] { content.words }
     private var totalCharCount: Int { content.totalCharCount }
@@ -173,13 +175,15 @@ struct ExternalDisplayView: View {
     }
 
     var body: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+
         ZStack {
-            Color.black.ignoresSafeArea()
+            theme.color(.absoluteBlack).ignoresSafeArea()
 
             if isDone {
-                doneView
+                doneView(theme: theme)
             } else {
-                prompterView
+                prompterView(theme: theme)
             }
         }
         .overlay(alignment: .topTrailing) {
@@ -190,7 +194,7 @@ struct ExternalDisplayView: View {
             }
         }
         .scaleEffect(x: mirrorAxis?.scaleX ?? 1, y: mirrorAxis?.scaleY ?? 1)
-        .animation(.easeInOut(duration: 0.5), value: isDone)
+        .animation(theme.animation(.emphasized), value: isDone)
         .onChange(of: isDone) { _, done in
             if done {
                 speechRecognizer.stop()
@@ -212,7 +216,7 @@ struct ExternalDisplayView: View {
         }
     }
 
-    private var prompterView: some View {
+    private func prompterView(theme: FCTheme) -> some View {
         GeometryReader { geo in
             let fontSize = max(48, min(96, geo.size.width / 14))
             let hPad = max(40, geo.size.width * 0.08)
@@ -258,7 +262,7 @@ struct ExternalDisplayView: View {
                     if listeningMode == .wordTracking {
                         Text(speechRecognizer.lastSpokenText.split(separator: " ").suffix(5).joined(separator: " "))
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(theme.color(.textSecondary))
                             .lineLimit(1)
                             .truncationMode(.head)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -276,9 +280,10 @@ struct ExternalDisplayView: View {
                         } label: {
                             Image(systemName: speechRecognizer.isListening ? "mic.fill" : "mic.slash.fill")
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundStyle(speechRecognizer.isListening ? .yellow.opacity(0.8) : .white.opacity(0.4))
+                                .foregroundStyle(speechRecognizer.isListening ? theme.color(.readYellow) : theme.color(.textSecondary))
                                 .frame(width: 40, height: 40)
-                                .background(.white.opacity(0.15))
+                                .background(theme.color(.surfaceInset))
+                                .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -290,7 +295,7 @@ struct ExternalDisplayView: View {
         }
     }
 
-    private var doneView: some View {
+    private func doneView(theme: FCTheme) -> some View {
         VStack(spacing: 12) {
             if hasNextPage {
                 Button {
@@ -302,22 +307,23 @@ struct ExternalDisplayView: View {
                         Text("Next Page")
                             .font(.system(size: 28, weight: .bold))
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.onAccentForeground(for: .cueMint))
                     .padding(.horizontal, 32)
                     .padding(.vertical, 16)
-                    .background(Color.accentColor)
+                    .background(theme.color(.cueMint))
+                    .overlay(Capsule(style: .continuous).stroke(theme.color(.cueMintBorder), lineWidth: FCStrokeToken.thin.rawValue))
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
             } else {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 60))
-                    .foregroundStyle(.green)
-                Text("Done!")
+                    .foregroundStyle(theme.color(.stateSuccess))
+                Text("DONE")
                     .font(.system(size: 32, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.color(.textPrimary))
             }
         }
-        .transition(.scale.combined(with: .opacity))
+        .transition(.opacity)
     }
 }

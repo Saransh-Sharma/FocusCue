@@ -303,14 +303,17 @@ class BrowserServer {
         /* Waiting */
         #waiting{flex:1;display:flex;flex-direction:column;align-items:center;
           justify-content:center;gap:16px}
-        #waiting .icon{font-size:48px}
-        #waiting .title{font-size:20px;font-weight:600;color:rgba(255,255,255,.6);
-          animation:pulse 2s ease-in-out infinite}
-        #waiting .sub{font-size:14px;color:rgba(255,255,255,.3);text-align:center;
+        #waiting .icon{width:48px;height:48px;border:1px solid #3CFFD0;border-radius:50%;
+          display:flex;align-items:center;justify-content:center}
+        #waiting .icon::before{content:'';width:12px;height:12px;border-radius:50%;
+          background:#3CFFD0}
+        #waiting .title{font-size:20px;font-weight:600;color:#B8B8B8;
+          letter-spacing:.12em;text-transform:uppercase;animation:pulse 2s ease-in-out infinite}
+        #waiting .sub{font-size:14px;color:#B8B8B8;text-align:center;
           max-width:320px;line-height:1.5}
-        #waiting .url{font-size:12px;color:rgba(255,255,255,.15);margin-top:8px;
-          font-family:ui-monospace,monospace}
-        @keyframes pulse{0%,100%{opacity:.6}50%{opacity:1}}
+        #waiting .url{font-size:12px;color:#A7A7A7;margin-top:8px;
+          font-family:ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase}
+        @keyframes pulse{0%,100%{opacity:.78}50%{opacity:1}}
 
         /* Main */
         #main{display:none;flex-direction:column;height:100%}
@@ -339,25 +342,26 @@ class BrowserServer {
         #bar{flex-shrink:0;padding:12px max(40px,8%) 40px;
           display:flex;align-items:center;gap:16px}
         #waveform{width:240px;height:32px;display:flex;align-items:center;gap:1.5px}
-        .wf{width:3px;background:rgba(255,255,255,.15);border-radius:1.5px;
+        .wf{width:3px;background:#7A7A7A;border-radius:1.5px;
           min-height:3px;transition:height .08s ease,background .12s ease;align-self:center}
-        #spoken{font-size:18px;font-weight:500;color:rgba(255,255,255,.5);
+        #spoken{font-size:18px;font-weight:500;color:#B8B8B8;
           flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
           direction:rtl;text-align:left}
         #mic-btn{width:40px;height:40px;border-radius:50%;
-          background:rgba(255,255,255,.15);display:flex;align-items:center;
+          background:#0F0F0F;border:1px solid #7A7A7A;display:flex;align-items:center;
           justify-content:center;flex-shrink:0}
         #mic-dot{width:10px;height:10px;border-radius:50%;
-          background:#facc15;opacity:0;transition:opacity .2s}
+          background:#FFD60A;opacity:0;transition:opacity .2s}
         #mic-dot.on{opacity:1}
 
         /* Done */
         #done{display:none;flex-direction:column;align-items:center;
           justify-content:center;height:100%;gap:12px}
-        #done .check{width:64px;height:64px;border-radius:50%;background:#22c55e;
+        #done .check{width:64px;height:64px;border-radius:50%;background:#22C55E;
           display:flex;align-items:center;justify-content:center;
           font-size:32px;color:#fff;animation:pop .4s ease}
         #done .label{font-size:32px;font-weight:700;color:#fff;
+          letter-spacing:.12em;text-transform:uppercase;
           animation:fadeUp .4s ease .1s both}
         @keyframes pop{0%{transform:scale(0);opacity:0}
           60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
@@ -375,10 +379,10 @@ class BrowserServer {
         <body>
 
         <div id="waiting">
-          <div class="icon">📡</div>
-          <div class="title">Waiting for FocusCue…</div>
-          <div class="sub">Start reading in the app to see your teleprompter here</div>
-          <div class="url" id="conn-status">Connecting…</div>
+          <div class="icon"></div>
+          <div class="title">Waiting for FocusCue</div>
+          <div class="sub">Start reading in the app to see your teleprompter here.</div>
+          <div class="url" id="conn-status">Connecting</div>
         </div>
 
         <div id="main">
@@ -394,7 +398,7 @@ class BrowserServer {
 
         <div id="done">
           <div class="check">✓</div>
-          <div class="label">Done!</div>
+          <div class="label">Done</div>
         </div>
 
         <script>
@@ -436,7 +440,7 @@ class BrowserServer {
             document.getElementById('conn-status').textContent='Connected';};
           ws.onmessage=e=>{try{render(JSON.parse(e.data))}catch(x){console.error(x)}};
           ws.onclose=()=>{
-            document.getElementById('conn-status').textContent='Reconnecting…';
+            document.getElementById('conn-status').textContent='Reconnecting';
             rt=setTimeout(connect,1500);};
           ws.onerror=()=>{ws.close()};
         }
@@ -510,16 +514,16 @@ class BrowserServer {
 
             if(!hlWords){
               // Classic / silence-paused: uniform color, no per-word highlight
-              color=ann?'rgba(255,255,255,0.4)':fc;
+              color=ann?'rgba(255,255,255,0.55)':fc;
             } else if(ann){
               // Annotation: italic, white with varying opacity
-              color=isFullyLit?'rgba(255,255,255,0.5)':'rgba(255,255,255,0.2)';
+              color=isFullyLit?'rgba(255,255,255,0.55)':'rgba(255,255,255,0.45)';
             } else if(isFullyLit){
               // Already read: dimmed
-              color=rgba(rgb,0.3);
+              color=rgba(rgb,0.55);
             } else if(isCurrent){
               // Current / next word: medium + underline
-              color=rgba(rgb,0.6);
+              color=rgba(rgb,0.72);
               underline=true;
             } else {
               // Unread: full brightness
@@ -560,7 +564,7 @@ class BrowserServer {
             const isLit=barProgress<=pct;
             wf.children[i].style.height=Math.max(3,l*32)+'px';
             wf.children[i].style.background=isLit
-              ?'rgba(250,204,21,0.9)':'rgba(255,255,255,0.15)';
+              ?'rgba(255,214,10,0.9)':'#7A7A7A';
           }
 
           // Last spoken text (word-tracking mode only)

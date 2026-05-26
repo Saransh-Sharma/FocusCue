@@ -284,11 +284,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     }
 
     var accent: FCColorToken {
-        switch self {
-        case .display: return .accentPrimary
-        case .guidance: return .accentInfo
-        case .connections: return .stateSuccess
-        }
+        .cueMint
     }
 }
 
@@ -562,7 +558,7 @@ private var onboardingCallout: some View {
                         .fcTypography(.caption)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(theme.color(.accentPrimary))
+                .foregroundStyle(theme.color(.cueMint))
             }
         }
     }
@@ -580,28 +576,28 @@ private var onboardingCallout: some View {
                 .padding(.vertical, FCSpacingToken.s8.rawValue)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(theme.color(.surfaceOverlay).opacity(0.85))
+                        .fill(theme.color(.canvasBlack))
                 )
                 .overlay(
                     Capsule(style: .continuous)
-                        .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+                        .stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
                 )
 
                 Button("Reset App & Start Setup Again") {
                     showResetAppConfirmation = true
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(theme.color(.stateError))
+                .foregroundStyle(theme.color(.dangerText))
                 .fcTypography(.label)
                 .padding(.horizontal, FCSpacingToken.s12.rawValue)
                 .padding(.vertical, FCSpacingToken.s8.rawValue)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(theme.color(.surfaceOverlay).opacity(0.85))
+                        .fill(theme.color(.canvasBlack))
                 )
                 .overlay(
                     Capsule(style: .continuous)
-                        .stroke(theme.color(.stateError).opacity(0.25), lineWidth: FCStrokeToken.thin.rawValue)
+                        .stroke(theme.color(.dangerText), lineWidth: FCStrokeToken.thin.rawValue)
                 )
             }
 
@@ -612,19 +608,13 @@ private var onboardingCallout: some View {
             }
             .keyboardShortcut(.defaultAction)
             .buttonStyle(.plain)
-            .foregroundStyle(.white)
-            .fcTypography(.label)
+            .foregroundStyle(theme.onAccentForeground(for: .cueMint))
+            .fcTypography(.monoButton)
             .padding(.horizontal, FCSpacingToken.s20.rawValue)
             .padding(.vertical, FCSpacingToken.s8.rawValue)
             .background(
                 Capsule(style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [theme.color(.accentInfo), theme.color(.accentPrimary)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
+                    .fill(theme.color(.cueMint))
             )
         }
     }
@@ -735,13 +725,13 @@ private var onboardingCallout: some View {
                                 settings.fontFamilyPreset = preset
                             }
                         } label: {
-                            FCSettingsOptionCard(isSelected: settings.fontFamilyPreset == preset, accent: .accentInfo) {
+                            FCSettingsOptionCard(isSelected: settings.fontFamilyPreset == preset, accent: .cueMint) {
                                 VStack(spacing: FCSpacingToken.s4.rawValue) {
                                     Text(preset.sampleText)
                                         .font(Font(preset.font(size: 18)))
-                                        .foregroundStyle(settings.fontFamilyPreset == preset ? theme.color(.accentInfo) : theme.color(.textPrimary))
+                                        .foregroundStyle(settings.fontFamilyPreset == preset ? theme.color(.cueMint) : theme.color(.textPrimary))
                                     Text(preset.label)
-                                        .foregroundStyle(settings.fontFamilyPreset == preset ? theme.color(.accentInfo) : theme.color(.textSecondary))
+                                        .foregroundStyle(settings.fontFamilyPreset == preset ? theme.color(.cueMint) : theme.color(.textSecondary))
                                         .fcTypography(.caption)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -760,13 +750,13 @@ private var onboardingCallout: some View {
                                 settings.fontSizePreset = preset
                             }
                         } label: {
-                            FCSettingsOptionCard(isSelected: settings.fontSizePreset == preset, accent: .accentPrimary) {
+                            FCSettingsOptionCard(isSelected: settings.fontSizePreset == preset, accent: .cueMint) {
                                 VStack(spacing: FCSpacingToken.s4.rawValue) {
                                     Text("Ag")
                                         .font(Font(settings.fontFamilyPreset.font(size: preset.pointSize * 0.7)))
-                                        .foregroundStyle(settings.fontSizePreset == preset ? theme.color(.accentPrimary) : theme.color(.textPrimary))
+                                        .foregroundStyle(settings.fontSizePreset == preset ? theme.color(.cueMint) : theme.color(.textPrimary))
                                     Text(preset.label)
-                                        .foregroundStyle(settings.fontSizePreset == preset ? theme.color(.accentPrimary) : theme.color(.textSecondary))
+                                        .foregroundStyle(settings.fontSizePreset == preset ? theme.color(.cueMint) : theme.color(.textSecondary))
                                         .fcTypography(.caption)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -785,14 +775,14 @@ private var onboardingCallout: some View {
                                 settings.fontColorPreset = preset
                             }
                         } label: {
-                            FCSettingsOptionCard(isSelected: settings.fontColorPreset == preset, accent: .accentCTA) {
+                            FCSettingsOptionCard(isSelected: settings.fontColorPreset == preset, accent: .teleprompterOrange) {
                                 VStack(spacing: FCSpacingToken.s4.rawValue) {
                                     Circle()
                                         .fill(preset.color)
                                         .frame(width: 22, height: 22)
                                         .overlay(
                                             Circle()
-                                                .strokeBorder(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+                                                .strokeBorder(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
                                         )
                                         .overlay(
                                             Group {
@@ -1169,7 +1159,7 @@ private var onboardingCallout: some View {
                                     .clipShape(RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous))
                                     .overlay(
                                         RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                                            .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+                                            .stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
                                     )
                                 Spacer()
                             }
@@ -1177,7 +1167,7 @@ private var onboardingCallout: some View {
 
                         HStack(spacing: FCSpacingToken.s8.rawValue) {
                             Text(browserURL)
-                                .foregroundStyle(theme.color(.accentInfo))
+                                .foregroundStyle(theme.color(.cueMint))
                                 .fcTypography(.mono)
                                 .textSelection(.enabled)
                                 .lineLimit(1)
@@ -1198,11 +1188,11 @@ private var onboardingCallout: some View {
                         .frame(maxWidth: .infinity, alignment: .center)
                         .background(
                             RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                                .fill(theme.color(.accentInfo).opacity(0.10))
+                                .fill(theme.color(.canvasBlack))
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                                .stroke(theme.color(.accentInfo).opacity(0.28), lineWidth: FCStrokeToken.thin.rawValue)
+                                .stroke(theme.color(.cueMint), lineWidth: FCStrokeToken.thin.rawValue)
                         )
                     }
                 }
@@ -1223,12 +1213,12 @@ private var onboardingCallout: some View {
                                         .frame(width: 96)
                                         .background(
                                             RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                                                .fill(theme.color(.surfaceOverlay).opacity(0.82))
+                                                .fill(theme.color(.surfaceInset))
                                         )
                                         .overlay(
                                             RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
                                                 .stroke(
-                                                    browserPortValidation == nil ? theme.color(.borderSubtle) : theme.color(.stateWarning),
+                                                    browserPortValidation == nil ? theme.color(.controlBorder) : theme.color(.stateWarning),
                                                     lineWidth: FCStrokeToken.thin.rawValue
                                                 )
                                         )
@@ -1334,11 +1324,11 @@ private var onboardingCallout: some View {
                 .padding(.vertical, FCSpacingToken.s8.rawValue)
                 .background(
                     RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                        .fill(theme.color(.surfaceOverlay).opacity(0.82))
+                        .fill(theme.color(.surfaceInset))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: FCShapeToken.radius10.rawValue, style: .continuous)
-                        .stroke(theme.color(.borderSubtle), lineWidth: FCStrokeToken.thin.rawValue)
+                        .stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
                 )
 
             if let description {
@@ -1348,7 +1338,7 @@ private var onboardingCallout: some View {
             }
 
             Link(helpText, destination: helpURL)
-                .foregroundStyle(theme.color(.accentInfo))
+                .foregroundStyle(theme.color(.hoverBlue))
                 .fcTypography(.caption)
         }
     }
@@ -1369,16 +1359,16 @@ private var onboardingCallout: some View {
                             selectedID.wrappedValue = screen.displayID
                         }
                     } label: {
-                        FCSettingsOptionCard(isSelected: selectedID.wrappedValue == screen.displayID, accent: .accentInfo) {
+                        FCSettingsOptionCard(isSelected: selectedID.wrappedValue == screen.displayID, accent: .cueMint) {
                             HStack(spacing: FCSpacingToken.s8.rawValue) {
                                 Image(systemName: "display")
                                     .font(.system(size: 15, weight: .medium))
-                                    .foregroundStyle(selectedID.wrappedValue == screen.displayID ? theme.color(.accentInfo) : theme.color(.textSecondary))
+                                    .foregroundStyle(selectedID.wrappedValue == screen.displayID ? theme.color(.cueMint) : theme.color(.textSecondary))
                                     .frame(width: 20)
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(screen.displayName)
-                                        .foregroundStyle(selectedID.wrappedValue == screen.displayID ? theme.color(.accentInfo) : theme.color(.textPrimary))
+                                        .foregroundStyle(selectedID.wrappedValue == screen.displayID ? theme.color(.cueMint) : theme.color(.textPrimary))
                                         .fcTypography(.label)
                                     Text("\(Int(screen.frame.width))×\(Int(screen.frame.height))")
                                         .foregroundStyle(theme.color(.textTertiary))
@@ -1390,7 +1380,7 @@ private var onboardingCallout: some View {
                                 if selectedID.wrappedValue == screen.displayID {
                                     Image(systemName: "checkmark.circle.fill")
                                         .font(.system(size: 14))
-                                        .foregroundStyle(theme.color(.accentInfo))
+                                        .foregroundStyle(theme.color(.cueMint))
                                 }
                             }
                         }

@@ -422,7 +422,7 @@ struct WordFlowLayout: View {
         // When highlighting is off (classic/silence-paused), use uniform color
         if !highlightWords {
             let uniformColor: Color = item.isAnnotation
-                ? Color.white.opacity(0.4)
+                ? Color.white.opacity(0.55)
                 : highlightColor
 
             return Text(item.word + " ")
@@ -445,8 +445,8 @@ struct WordFlowLayout: View {
         // Annotations: italic, always dimmed
         if item.isAnnotation {
             let annotationColor: Color = isFullyLit
-                ? Color.white.opacity(0.5)
-                : Color.white.opacity(0.2)
+                ? Color.white.opacity(0.55)
+                : Color.white.opacity(0.45)
 
             return Text(item.word + " ")
                 .font(Font(font).italic())
@@ -467,11 +467,11 @@ struct WordFlowLayout: View {
 
         // Dim color: highlight color variant for current word, full for unread
         let dimColor: Color = isCurrentWord
-            ? highlightColor.opacity(0.6)
+            ? highlightColor.opacity(0.72)
             : highlightColor
 
         // Base color for the whole word
-        let wordColor: Color = isFullyLit ? highlightColor.opacity(0.3) : dimColor
+        let wordColor: Color = isFullyLit ? highlightColor.opacity(0.55) : dimColor
 
         return Text(item.word + " ")
             .font(Font(font))
@@ -543,7 +543,7 @@ struct ElapsedTimeView: View {
             let seconds = Int(elapsed) % 60
             Text(String(format: "%02d:%02d", minutes, seconds))
                 .font(.system(size: fontSize, weight: .medium, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(.white.opacity(0.72))
         }
     }
 }
@@ -554,7 +554,12 @@ struct AudioWaveformProgressView: View {
     let levels: [CGFloat]
     let progress: Double // 0.0 to 1.0
 
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+
         HStack(alignment: .center, spacing: 2) {
             ForEach(Array(levels.enumerated()), id: \.offset) { index, level in
                 let barProgress = Double(index) / Double(max(1, levels.count - 1))
@@ -562,11 +567,11 @@ struct AudioWaveformProgressView: View {
 
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(isLit
-                          ? Color.yellow.opacity(0.9)
-                          : Color.white.opacity(0.15)
+                          ? theme.color(.readYellow).opacity(0.9)
+                          : theme.color(.frameGray)
                     )
                     .frame(width: 3, height: max(3, level * 28))
-                    .animation(.easeOut(duration: 0.08), value: level)
+                    .animation(theme.animation(.fast), value: level)
             }
         }
     }

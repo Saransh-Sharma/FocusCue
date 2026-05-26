@@ -519,15 +519,20 @@ class NotchOverlayController: NSObject {
 
 struct StopButtonView: View {
     let onStop: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+
         Button(action: onStop) {
             Image(systemName: "stop.fill")
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.onAccentForeground(for: .recordingPink))
                 .frame(width: 36, height: 36)
-                .background(.red.opacity(0.85))
+                .background(theme.color(.recordingPink))
                 .clipShape(Circle())
+                .overlay(Circle().stroke(theme.color(.dangerText), lineWidth: FCStrokeToken.thin.rawValue))
         }
         .buttonStyle(.plain)
     }
@@ -608,6 +613,8 @@ struct NotchOverlayView: View {
     let baseTextHeight: CGFloat
     let maxExtraHeight: CGFloat
     var frameTracker: NotchFrameTracker
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var words: [String] { content.words }
     private var totalCharCount: Int { content.totalCharCount }
@@ -692,6 +699,8 @@ struct NotchOverlayView: View {
     }
 
     var body: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+
         GeometryReader { geo in
             let targetHeight = menuBarHeight + baseTextHeight + extraHeight
             let currentHeight = notchHeight + (targetHeight - notchHeight) * expansion
@@ -703,7 +712,7 @@ struct NotchOverlayView: View {
                     topInset: currentTopInset,
                     bottomRadius: currentBottomRadius
                 )
-                .fill(.black)
+                .fill(theme.color(.absoluteBlack))
                 .frame(width: currentWidth, height: currentHeight)
 
                 // Content - appears after container expands
@@ -737,31 +746,44 @@ struct NotchOverlayView: View {
         }
         .onChange(of: extraHeight) { _, _ in updateFrameTracker() }
         .onAppear {
-            // Phase 1: Expand container with smooth easing
-            withAnimation(.easeOut(duration: 0.4)) {
+            if reduceMotion {
+                expansion = 1
+                withAnimation(theme.animation(.fast)) {
+                    contentVisible = true
+                }
+                return
+            }
+
+            withAnimation(theme.animation(.emphasized, curve: .enter)) {
                 expansion = 1
             }
-            // Phase 2: Show content after container expands
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                withAnimation(.easeOut(duration: 0.25)) {
+                withAnimation(theme.animation(.base, curve: .enter)) {
                     contentVisible = true
                 }
             }
         }
         .onChange(of: speechRecognizer.shouldDismiss) { _, shouldDismiss in
             if shouldDismiss {
-                // Reverse: hide content first, then shrink container
-                withAnimation(.easeIn(duration: 0.15)) {
+                if reduceMotion {
+                    withAnimation(theme.animation(.fast)) {
+                        contentVisible = false
+                    }
+                    expansion = 0
+                    return
+                }
+
+                withAnimation(theme.animation(.fast, curve: .exit)) {
                     contentVisible = false
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    withAnimation(.easeIn(duration: 0.3)) {
+                    withAnimation(theme.animation(.slow, curve: .exit)) {
                         expansion = 0
                     }
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.5), value: isDone)
+        .animation(theme.animation(.slow), value: isDone)
         .onChange(of: isDone) { _, done in
             if done {
                 // Stop listening when page is done
@@ -815,7 +837,11 @@ struct NotchOverlayView: View {
         }
     }
 
+    @ViewBuilder
     private var prompterView: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+        let controlSize: CGFloat = 32
+
         VStack(spacing: 0) {
             SpeechScrollView(
                 words: words,
@@ -841,7 +867,7 @@ struct NotchOverlayView: View {
             )
             .padding(.horizontal, 12)
             .padding(.top, 6)
-            .transition(.move(edge: .top).combined(with: .opacity))
+            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
 
             Group {
             HStack(alignment: .center, spacing: 8) {
@@ -857,7 +883,7 @@ struct NotchOverlayView: View {
                 if listeningMode == .wordTracking {
                     Text(speechRecognizer.lastSpokenText.split(separator: " ").suffix(3).joined(separator: " "))
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(theme.color(.textSecondary))
                         .lineLimit(1)
                         .truncationMode(.head)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -872,9 +898,10 @@ struct NotchOverlayView: View {
                         } label: {
                             Image(systemName: "forward.fill")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.6))
-                                .frame(width: 24, height: 24)
-                                .background(.white.opacity(0.15))
+                                .foregroundStyle(theme.color(.textSecondary))
+                                .frame(width: controlSize, height: controlSize)
+                                .background(theme.color(.surfaceInset))
+                                .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -890,9 +917,10 @@ struct NotchOverlayView: View {
                         } label: {
                             Image(systemName: "backward.end.fill")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.6))
-                                .frame(width: 24, height: 24)
-                                .background(.white.opacity(0.15))
+                                .foregroundStyle(theme.color(.textSecondary))
+                                .frame(width: controlSize, height: controlSize)
+                                .background(theme.color(.surfaceInset))
+                                .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -911,9 +939,10 @@ struct NotchOverlayView: View {
                     } label: {
                         Image(systemName: isPaused ? "play.fill" : "pause.fill")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(isPaused ? .white.opacity(0.6) : .yellow.opacity(0.8))
-                            .frame(width: 24, height: 24)
-                            .background(.white.opacity(0.15))
+                            .foregroundStyle(isPaused ? theme.color(.textSecondary) : theme.color(.readYellow))
+                            .frame(width: controlSize, height: controlSize)
+                            .background(theme.color(.surfaceInset))
+                            .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
@@ -927,9 +956,10 @@ struct NotchOverlayView: View {
                     } label: {
                         Image(systemName: speechRecognizer.isListening ? "mic.fill" : "mic.slash.fill")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(speechRecognizer.isListening ? .yellow.opacity(0.8) : .white.opacity(0.6))
-                            .frame(width: 24, height: 24)
-                            .background(.white.opacity(0.15))
+                            .foregroundStyle(speechRecognizer.isListening ? theme.color(.readYellow) : theme.color(.textSecondary))
+                            .frame(width: controlSize, height: controlSize)
+                            .background(theme.color(.surfaceInset))
+                            .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
@@ -941,14 +971,15 @@ struct NotchOverlayView: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.6))
-                        .frame(width: 24, height: 24)
-                        .background(.white.opacity(0.15))
+                        .foregroundStyle(theme.color(.textSecondary))
+                        .frame(width: controlSize, height: controlSize)
+                        .background(theme.color(.surfaceInset))
+                        .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
             }
-            .frame(height: 24)
+            .frame(height: controlSize)
             .padding(.horizontal, 12)
             .padding(.bottom, 10)
 
@@ -957,7 +988,7 @@ struct NotchOverlayView: View {
                 VStack(spacing: 0) {
                     Spacer().frame(height: 4)
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.white.opacity(0.25))
+                        .fill(theme.color(.controlBorder))
                         .frame(width: 36, height: 4)
                     Spacer().frame(height: 8)
                 }
@@ -984,11 +1015,11 @@ struct NotchOverlayView: View {
                         NSCursor.pop()
                     }
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
             }
             .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(theme.animation(.fast)) {
                     isHovering = hovering
                 }
             }
@@ -996,12 +1027,15 @@ struct NotchOverlayView: View {
         }
     }
 
+    @ViewBuilder
     private var pagePickerView: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Jump to page")
+                Text("JUMP TO PAGE")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(theme.color(.textSecondary))
                     .padding(.bottom, 2)
 
                 ForEach(0..<content.pageCount, id: \.self) { i in
@@ -1014,19 +1048,19 @@ struct NotchOverlayView: View {
                         HStack(spacing: 8) {
                             Text("\(i + 1)")
                                 .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                .foregroundStyle(i == content.currentPageIndex ? .yellow : .white.opacity(0.8))
+                                .foregroundStyle(i == content.currentPageIndex ? theme.color(.readYellow) : theme.color(.textMuted))
                                 .frame(width: 20)
 
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(title)
                                     .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(i == content.currentPageIndex ? .yellow.opacity(0.9) : .white.opacity(0.78))
+                                    .foregroundStyle(i == content.currentPageIndex ? theme.color(.readYellow) : theme.color(.textMuted))
                                     .lineLimit(1)
                                     .truncationMode(.tail)
                                 if !preview.isEmpty {
                                     Text(preview)
                                         .font(.system(size: 11, weight: .regular))
-                                        .foregroundStyle(i == content.currentPageIndex ? .yellow.opacity(0.7) : .white.opacity(0.5))
+                                        .foregroundStyle(i == content.currentPageIndex ? theme.color(.readYellow).opacity(0.85) : theme.color(.textSecondary))
                                         .lineLimit(1)
                                         .truncationMode(.tail)
                                 }
@@ -1037,15 +1071,19 @@ struct NotchOverlayView: View {
                         .padding(.horizontal, 8)
                         .background(
                             RoundedRectangle(cornerRadius: 6)
-                                .fill(i == content.currentPageIndex ? Color.yellow.opacity(0.1) : Color.white.opacity(0.05))
+                                .fill(theme.color(.surfaceInset))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(i == content.currentPageIndex ? theme.color(.readYellow) : theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
                         )
                     }
                     .buttonStyle(.plain)
                 }
 
-                Text("Tap a page to jump")
+                Text("LONG-PRESS PAGE CONTROL TO RETURN")
                     .font(.system(size: 10))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(theme.color(.textTertiary))
                     .padding(.top, 4)
             }
             .padding(.horizontal, 12)
@@ -1075,7 +1113,10 @@ struct NotchOverlayView: View {
         countdownRemaining = 0
     }
 
+    @ViewBuilder
     private var doneView: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+
         VStack {
             Spacer()
             if hasNextPage {
@@ -1083,9 +1124,9 @@ struct NotchOverlayView: View {
                     if countdownRemaining > 0 {
                         Text("\(countdownRemaining)")
                             .font(.system(size: 22, weight: .heavy, design: .rounded))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.color(.readYellow))
                             .contentTransition(.numericText())
-                            .animation(.easeInOut(duration: 0.3), value: countdownRemaining)
+                            .animation(theme.animation(.slow), value: countdownRemaining)
                     }
                     Button {
                         cancelCountdown()
@@ -1094,10 +1135,10 @@ struct NotchOverlayView: View {
                         VStack(spacing: 4) {
                             Text("Next Page")
                                 .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.5))
+                                .foregroundStyle(theme.color(.textSecondary))
                             Image(systemName: "forward.fill")
                                 .font(.system(size: 18, weight: .bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.color(.cueMint))
                         }
                     }
                     .buttonStyle(.plain)
@@ -1105,15 +1146,15 @@ struct NotchOverlayView: View {
             } else {
                 HStack(spacing: 6) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text("Done!")
+                        .foregroundStyle(theme.color(.stateSuccess))
+                    Text("DONE")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(theme.color(.textPrimary))
                 }
             }
             Spacer()
         }
-        .transition(.scale.combined(with: .opacity))
+        .transition(.opacity)
     }
 }
 
@@ -1143,6 +1184,8 @@ struct FloatingOverlayView: View {
     @Bindable var speechRecognizer: SpeechRecognizer
     let baseHeight: CGFloat
     var followingCursor: Bool = false
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var words: [String] { content.words }
     private var totalCharCount: Int { content.totalCharCount }
@@ -1215,6 +1258,8 @@ struct FloatingOverlayView: View {
     }
 
     var body: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+
         VStack(spacing: 0) {
             if content.showPagePicker {
                 floatingPagePickerView
@@ -1236,33 +1281,37 @@ struct FloatingOverlayView: View {
             Group {
                 if NotchSettings.shared.floatingGlassEffect {
                     ZStack {
-                        GlassEffectView()
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(.black.opacity(NotchSettings.shared.glassOpacity))
+                            GlassEffectView()
+                            RoundedRectangle(cornerRadius: 16)
+                            .fill(theme.color(.absoluteBlack).opacity(NotchSettings.shared.glassOpacity))
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                 } else {
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(.black)
+                        .fill(theme.color(.absoluteBlack))
                 }
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
+        )
         .opacity(appeared ? 1 : 0)
-        .scaleEffect(appeared ? 1 : 0.9)
+        .scaleEffect(reduceMotion ? 1 : (appeared ? 1 : 0.9))
         .onAppear {
-            withAnimation(.easeOut(duration: 0.3)) {
+            withAnimation(theme.animation(.slow, curve: .enter)) {
                 appeared = true
             }
         }
         .onChange(of: speechRecognizer.shouldDismiss) { _, shouldDismiss in
             if shouldDismiss {
-                withAnimation(.easeIn(duration: 0.25)) {
+                withAnimation(theme.animation(.base, curve: .exit)) {
                     appeared = false
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.5), value: isDone)
+        .animation(theme.animation(.slow), value: isDone)
         .onChange(of: isDone) { _, done in
             if done {
                 // Stop listening when page is done
@@ -1299,7 +1348,11 @@ struct FloatingOverlayView: View {
         }
     }
 
+    @ViewBuilder
     private var floatingPrompterView: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+        let controlSize: CGFloat = 32
+
         VStack(spacing: 0) {
             SpeechScrollView(
                 words: words,
@@ -1338,7 +1391,7 @@ struct FloatingOverlayView: View {
                 if listeningMode == .wordTracking {
                     Text(speechRecognizer.lastSpokenText.split(separator: " ").suffix(3).joined(separator: " "))
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(theme.color(.textSecondary))
                         .lineLimit(1)
                         .truncationMode(.head)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1353,9 +1406,10 @@ struct FloatingOverlayView: View {
                         } label: {
                             Image(systemName: "forward.fill")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.6))
-                                .frame(width: 24, height: 24)
-                                .background(.white.opacity(0.15))
+                                .foregroundStyle(theme.color(.textSecondary))
+                                .frame(width: controlSize, height: controlSize)
+                                .background(theme.color(.surfaceInset))
+                                .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -1371,9 +1425,10 @@ struct FloatingOverlayView: View {
                         } label: {
                             Image(systemName: "backward.end.fill")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.6))
-                                .frame(width: 24, height: 24)
-                                .background(.white.opacity(0.15))
+                                .foregroundStyle(theme.color(.textSecondary))
+                                .frame(width: controlSize, height: controlSize)
+                                .background(theme.color(.surfaceInset))
+                                .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -1393,9 +1448,10 @@ struct FloatingOverlayView: View {
                         } label: {
                             Image(systemName: isPaused ? "play.fill" : "pause.fill")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(isPaused ? .white.opacity(0.6) : .yellow.opacity(0.8))
-                                .frame(width: 24, height: 24)
-                                .background(.white.opacity(0.15))
+                                .foregroundStyle(isPaused ? theme.color(.textSecondary) : theme.color(.readYellow))
+                                .frame(width: controlSize, height: controlSize)
+                                .background(theme.color(.surfaceInset))
+                                .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -1409,9 +1465,10 @@ struct FloatingOverlayView: View {
                         } label: {
                             Image(systemName: speechRecognizer.isListening ? "mic.fill" : "mic.slash.fill")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(speechRecognizer.isListening ? .yellow.opacity(0.8) : .white.opacity(0.6))
-                                .frame(width: 24, height: 24)
-                                .background(.white.opacity(0.15))
+                                .foregroundStyle(speechRecognizer.isListening ? theme.color(.readYellow) : theme.color(.textSecondary))
+                                .frame(width: controlSize, height: controlSize)
+                                .background(theme.color(.surfaceInset))
+                                .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -1423,15 +1480,16 @@ struct FloatingOverlayView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.6))
-                            .frame(width: 24, height: 24)
-                            .background(.white.opacity(0.15))
+                            .foregroundStyle(theme.color(.textSecondary))
+                            .frame(width: controlSize, height: controlSize)
+                            .background(theme.color(.surfaceInset))
+                            .overlay(Circle().stroke(theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue))
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .frame(height: 24)
+            .frame(height: controlSize)
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
         }
@@ -1458,12 +1516,15 @@ struct FloatingOverlayView: View {
         countdownRemaining = 0
     }
 
+    @ViewBuilder
     private var floatingPagePickerView: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Jump to page")
+                Text("JUMP TO PAGE")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(theme.color(.textSecondary))
                     .padding(.bottom, 4)
 
                 ForEach(0..<content.pageCount, id: \.self) { i in
@@ -1476,18 +1537,18 @@ struct FloatingOverlayView: View {
                         HStack(spacing: 10) {
                             Text("\(i + 1)")
                                 .font(.system(size: 14, weight: .bold, design: .monospaced))
-                                .foregroundStyle(i == content.currentPageIndex ? .yellow : .white.opacity(0.8))
+                                .foregroundStyle(i == content.currentPageIndex ? theme.color(.readYellow) : theme.color(.textMuted))
                                 .frame(width: 24)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(title)
                                     .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(i == content.currentPageIndex ? .yellow.opacity(0.9) : .white.opacity(0.78))
+                                    .foregroundStyle(i == content.currentPageIndex ? theme.color(.readYellow) : theme.color(.textMuted))
                                     .lineLimit(1)
                                     .truncationMode(.tail)
                                 if !preview.isEmpty {
                                     Text(preview)
                                         .font(.system(size: 12, weight: .regular))
-                                        .foregroundStyle(i == content.currentPageIndex ? .yellow.opacity(0.7) : .white.opacity(0.5))
+                                        .foregroundStyle(i == content.currentPageIndex ? theme.color(.readYellow).opacity(0.85) : theme.color(.textSecondary))
                                         .lineLimit(1)
                                         .truncationMode(.tail)
                                 }
@@ -1498,15 +1559,19 @@ struct FloatingOverlayView: View {
                         .padding(.horizontal, 10)
                         .background(
                             RoundedRectangle(cornerRadius: 8)
-                                .fill(i == content.currentPageIndex ? Color.yellow.opacity(0.1) : Color.white.opacity(0.05))
+                                .fill(theme.color(.surfaceInset))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(i == content.currentPageIndex ? theme.color(.readYellow) : theme.color(.controlBorder), lineWidth: FCStrokeToken.thin.rawValue)
                         )
                     }
                     .buttonStyle(.plain)
                 }
 
-                Text("Tap a page to jump")
+                Text("TAP A PAGE TO JUMP")
                     .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(theme.color(.textTertiary))
                     .padding(.top, 4)
             }
             .padding(.horizontal, 16)
@@ -1515,7 +1580,10 @@ struct FloatingOverlayView: View {
         .transition(.opacity)
     }
 
+    @ViewBuilder
     private var floatingDoneView: some View {
+        let theme = FCTheme(colorScheme: colorScheme, reduceMotion: reduceMotion)
+
         VStack {
             Spacer()
             if hasNextPage {
@@ -1523,14 +1591,14 @@ struct FloatingOverlayView: View {
                     if countdownRemaining > 0 {
                         Text("\(countdownRemaining)")
                             .font(.system(size: 28, weight: .heavy, design: .rounded))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.color(.readYellow))
                             .contentTransition(.numericText())
-                            .animation(.easeInOut(duration: 0.3), value: countdownRemaining)
+                            .animation(theme.animation(.slow), value: countdownRemaining)
                     }
                     if followingCursor {
                         Text("Next Page")
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.color(.cueMint))
                     } else {
                         Button {
                             cancelCountdown()
@@ -1542,10 +1610,11 @@ struct FloatingOverlayView: View {
                                 Text("Next Page")
                                     .font(.system(size: 14, weight: .bold))
                             }
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.onAccentForeground(for: .cueMint))
                             .padding(.horizontal, 20)
                             .padding(.vertical, 10)
-                            .background(Color.accentColor)
+                            .background(theme.color(.cueMint))
+                            .overlay(Capsule(style: .continuous).stroke(theme.color(.cueMintBorder), lineWidth: FCStrokeToken.thin.rawValue))
                             .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)
@@ -1554,14 +1623,14 @@ struct FloatingOverlayView: View {
             } else {
                 HStack(spacing: 6) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text("Done!")
+                        .foregroundStyle(theme.color(.stateSuccess))
+                    Text("DONE")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(theme.color(.textPrimary))
                 }
             }
             Spacer()
         }
-        .transition(.scale.combined(with: .opacity))
+        .transition(.opacity)
     }
 }

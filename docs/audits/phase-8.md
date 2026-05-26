@@ -4,16 +4,16 @@
 Final parity + branding scrub + overall gate.
 
 ## 2. FocusCue files implemented
-- Entire `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue/`
-- `/Users/saransh1337/Developer/Projects/FocusCue/Info.plist`
-- `/Users/saransh1337/Developer/Projects/FocusCue/FocusCue.xcodeproj/project.pbxproj`
+- Entire `FocusCue/`
+- `Info.plist`
+- `FocusCue.xcodeproj/project.pbxproj`
 - Build/workflow files and audit reports.
 
 ## 3. Reference files compared
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter/*.swift`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/Info.plist`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/AutoPrompter.xcodeproj/project.pbxproj`
-- `/Users/saransh1337/Developer/Projects/FocusCue/autoprompter-main/AutoPrompter/build.sh`
+- `autoprompter-main/AutoPrompter/AutoPrompter/*.swift`
+- `autoprompter-main/AutoPrompter/Info.plist`
+- `autoprompter-main/AutoPrompter/AutoPrompter.xcodeproj/project.pbxproj`
+- `autoprompter-main/AutoPrompter/build.sh`
 
 ## 4. Symbol parity check
 - Reference module set ported into FocusCue file structure.

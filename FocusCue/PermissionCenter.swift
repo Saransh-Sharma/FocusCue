@@ -36,7 +36,7 @@ enum FCPermissionStatus {
     var colorToken: FCColorToken {
         switch self {
         case .authorized: return .stateSuccess
-        case .denied: return .stateError
+        case .denied: return .dangerText
         case .restricted: return .stateWarning
         case .notDetermined: return .textTertiary
         }
